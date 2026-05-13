@@ -449,7 +449,7 @@ def main():
     '''
     sensitive_features = {}
     if X_test is not None: #sensitive features from X_test
-        for feat, props in config.get('features', {}).items():
+        for feat, props in (config.get('features') or {}).items():
             if props.get("sensitive", False):
                 corrected_feat = binning_mapping.get(feat, feat) if binning_mapping else feat #correct name if changed with binning col name
                 if corrected_feat in X_test.columns:

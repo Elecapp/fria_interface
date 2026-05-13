@@ -1,0 +1,24 @@
+# Ambienti virtuali Python
+.venv/
+venv/
+
+# File temporanei di Python
+__pycache__/
+*.pyc
+*.pyo
+
+# Cartelle dei dati
+data/
+datasets/
+*.csv
+*.pkl
+
+# File temporanei di Mac
+.DS_Store
+
+# Dipendenze Frontend
+node_modules/
+
+# Risultati e test locali
+backend/storage/configs/
+backend/storage/runs/
