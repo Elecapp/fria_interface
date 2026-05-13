@@ -1,0 +1,18 @@
+# Cache di Python (i file che vedevi nello screenshot)
+**/__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Cartelle del frontend
+frontend/node_modules/
+frontend/dist/
+
+# Ambiente virtuale
+venv/
+.env
+
+# Storage locale (per non caricare i tuoi test su github)
+backend/storage/uploads/*
+!backend/storage/uploads/.gitkeep
+backend/storage/summary/*.json
