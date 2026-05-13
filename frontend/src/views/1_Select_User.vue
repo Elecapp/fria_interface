@@ -3,7 +3,6 @@ import { ref } from "vue";
 import { useRouter } from "vue-router";
 
 const router = useRouter();
-
 const role = ref("");
 
 function goBack() {
@@ -12,222 +11,212 @@ function goBack() {
 
 function goToEvaluation(selectedRole) {
   role.value = selectedRole;
-
   router.push({
     path: "/ud",
     query: { role: selectedRole },
   });
 }
-
 </script>
 
 <template>
-  <div class="page">
-    <main class="content">
-      <p class="title">FRIA Support System</p>
-      <h1 class="subtitle">Choose the evaluator profile</h1>
+  <div class="page-layout">
+    <header class="top-nav">
+      <div class="nav-brand">FRIA Project</div>
+    </header>
 
-      <p class="description">
-        Select the type of user who will run the evaluation. The system can then
-        adapt the flow, guidance, and level of technical detail.
-      </p>
-
-      <div class="cards">
-        <button
-          class="role-card"
-          :class="{ active: role === 'expert' }"
-          @click="goToEvaluation('expert')"
-          type="button"
-        >
-          <span class="card-title">Expert</span>
-          <span class="card-text">
-            For users familiar with AI systems, model evaluation, and compliance concepts.
-          </span>
+    <main class="hero-container">
+      <div class="hero-content">
+        
+        <!-- Pulsante Indietro minimalista -->
+        <button class="back-button" @click="goBack" aria-label="Go back">
+          ← Back
         </button>
 
-        <button
-          class="role-card"
-          :class="{ active: role === 'non_expert' }"
-          @click="goToEvaluation('non_expert')"
-          type="button"
-        >
-          <span class="card-title">Non-expert</span>
-          <span class="card-text">
-            For users who need a guided workflow with simpler explanations and less jargon.
-          </span>
-        </button>
+        <!-- Titolo principale della pagina -->
+        <h1 class="main-title">Choose the evaluator profile</h1>
+        
+        <p class="description">
+          Select the type of user who will run the evaluation. The system can then
+          adapt the flow, guidance, and level of technical detail.
+        </p>
 
-        <button
-          class="role-card"
-          :class="{ active: role === 'technical_auditor' }"
-          @click="goToEvaluation('technical_auditor')"
-          type="button"
-        >
-          <span class="card-title">Technical auditor</span>
-          <span class="card-text">
-            For auditors who need structured evidence, metrics inspection, and reporting support.
-          </span>
-        </button>
+        <!-- Lista in stile "Editorial" -->
+        <div class="editorial-list">
+          
+          <button class="step-row" @click="goToEvaluation('expert')" type="button">
+            <div class="step-number">01</div>
+            <div class="step-text">
+              <h3 class="step-title">Expert</h3>
+              <p class="step-desc">
+                For users familiar with AI systems, model evaluation, and compliance concepts.
+              </p>
+            </div>
+          </button>
+
+          <button class="step-row" @click="goToEvaluation('non_expert')" type="button">
+            <div class="step-number">02</div>
+            <div class="step-text">
+              <h3 class="step-title">Non-expert</h3>
+              <p class="step-desc">
+                For users who need a guided workflow with simpler explanations and less jargon.
+              </p>
+            </div>
+          </button>
+
+          <button class="step-row" @click="goToEvaluation('technical_auditor')" type="button">
+            <div class="step-number">03</div>
+            <div class="step-text">
+              <h3 class="step-title">Technical auditor</h3>
+              <p class="step-desc">
+                For auditors who need structured evidence, metrics inspection, and reporting support.
+              </p>
+            </div>
+          </button>
+
+        </div>
       </div>
     </main>
   </div>
 </template>
 
 <style scoped>
-.page {
+.page-layout {
   min-height: 100vh;
-  background: #fff;
-  position: relative;
-  overflow: hidden;
-}
-
-.top-left {
-  position: fixed;
-  top: 20px;
-  left: 20px;
-  z-index: 10;
-}
-
-.select {
-  font-size: 16px;
-  padding: 8px 14px;
-  border: 2px solid #111827;
-  border-radius: 999px;
-  background: #fff;
-  outline: none;
-  min-width: 180px;
-}
-
-.content {
-  min-height: 100vh;
+  background-color: #faf9f8;
   display: flex;
   flex-direction: column;
+}
+
+.top-nav {
+  height: 50px;
+  background-color: #1a1a1a;
+  display: flex;
   align-items: center;
-  justify-content: flex-start;
-  padding: 18px 16px 28px;
-  text-align: center;
+  padding: 0 2rem;
 }
 
-.title {
-  margin: 0;
-  font-size: 68px;
-  font-weight: 800;
-  font-style: italic;
+.nav-brand {
+  color: #ffffff;
+  font-family: 'Inter', sans-serif;
+  font-weight: 600;
+  font-size: 0.9rem;
   letter-spacing: 0.5px;
-  line-height: 1;
 }
 
-
-.eyebrow {
-  margin: 0 0 10px;
-  font-size: 18px;
-  font-weight: 700;
-  font-style: italic;
-  color: #166534;
+.hero-container {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding-top: 5vh; /* Leggermente ridotto per far spazio al bottone back */
+  padding-bottom: 4rem;
 }
 
-.title {
-  margin: 0;
-  font-size: clamp(44px, 6vw, 72px);
-  line-height: 0.98;
-  font-weight: 800;
-  font-style: italic;
-  color: #111827;
+.hero-content {
+  max-width: 800px;
+  width: 100%;
+  padding: 0 2rem;
+}
+
+/* =========================================
+   STILE PULSANTE INDIETRO
+   ========================================= */
+.back-button {
+  background: none;
+  border: none;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: #888888;
+  cursor: pointer;
+  padding: 0;
+  margin-bottom: 2rem; /* Distanza dal titolo principale */
+  display: inline-flex;
+  align-items: center;
+  transition: color 0.2s ease, transform 0.2s ease;
+}
+
+.back-button:hover {
+  color: #111111; /* Diventa scuro al passaggio del mouse */
+  transform: translateX(-4px); /* Si sposta leggermente verso sinistra per indicare l'azione indietro */
+}
+
+/* Tipografia Intestazione */
+.main-title {
+  font-family: 'Instrument Serif', serif;
+  font-size: 4rem;
+  color: #1243e3;
+  font-weight: 400;
+  margin-bottom: 1rem;
+  line-height: 1.1;
 }
 
 .description {
-  margin: 24px 0 0;
-  max-width: 760px;
-  font-size: 20px;
-  line-height: 1.5;
-  color: #374151;
+  font-family: 'Inter', sans-serif;
+  font-size: 1.2rem;
+  color: #555555;
+  line-height: 1.6;
+  margin-bottom: 4rem;
+  max-width: 700px;
 }
 
-.cards {
-  margin-top: 44px;
+/* Lista Editoriale Interattiva */
+.editorial-list {
+  border-bottom: 1px solid #e5e5e5;
+}
+
+.step-row {
+  display: flex;
+  align-items: flex-start;
   width: 100%;
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 18px;
-}
-
-.role-card {
+  padding: 2.5rem 0;
+  background: transparent;
+  border: none;
+  border-top: 1px solid #e5e5e5;
   text-align: left;
-  padding: 24px;
-  border-radius: 22px;
-  border: 2px solid #d1d5db;
-  background: #fff;
   cursor: pointer;
-  transition: transform 0.18s ease, border-color 0.18s ease, box-shadow 0.18s ease;
-  box-shadow: 0 10px 30px rgba(17, 24, 39, 0.06);
+  transition: all 0.3s ease;
 }
 
-.role-card:hover {
-  transform: translateY(-2px);
-  border-color: #86efac;
+.step-number {
+  font-family: 'Inter', sans-serif;
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: #888888;
+  width: 80px;
+  padding-top: 0.5rem;
+  transition: color 0.3s ease;
 }
 
-.role-card.active {
-  border-color: #15803d;
-  background: #f0fdf4;
-  box-shadow: 0 14px 36px rgba(21, 128, 61, 0.12);
+.step-text {
+  flex: 1;
+  transition: transform 0.3s ease;
 }
 
-.card-title {
-  display: block;
-  font-size: 24px;
-  font-weight: 800;
-  font-style: italic;
-  color: #111827;
+.step-title {
+  font-family: 'Instrument Serif', serif;
+  font-size: 2.2rem;
+  color: #111111;
+  font-weight: 400;
+  margin: 0 0 0.8rem 0;
+  letter-spacing: 0.5px;
+  transition: color 0.3s ease;
 }
 
-.card-text {
-  display: block;
-  margin-top: 12px;
-  font-size: 16px;
-  line-height: 1.5;
-  color: #4b5563;
+.step-desc {
+  font-family: 'Inter', sans-serif;
+  font-size: 1.1rem;
+  color: #444444;
+  line-height: 1.6;
+  margin: 0;
 }
 
-.note {
-  margin-top: 16px;
-  font-size: 14px;
-  font-style: italic;
-  color: #4b5563;
-  line-height: 1.4;
+.step-row:hover .step-title,
+.step-row:hover .step-number {
+  color: #1243e3;
 }
 
-.sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border: 0;
-}
-
-.subtitle {
-  margin: 42px 0 10px;
-  font-size: 28px;
-  font-weight: 800;
-  font-style: italic;
-}
-
-@media (max-width: 900px) {
-  .cards {
-    grid-template-columns: 1fr;
-  }
-
-  .content {
-    justify-content: flex-start;
-    padding-top: 110px;
-  }
-
-  .description {
-    font-size: 18px;
-  }
+.step-row:hover .step-text {
+  transform: translateX(10px);
 }
 </style>

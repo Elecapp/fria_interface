@@ -1,535 +1,378 @@
 <script setup>
-// http://localhost:5173/ud
-
-import { ref, computed, onMounted } from "vue";
+import { ref, computed } from "vue";
 import { useRouter } from "vue-router";
 
 const router = useRouter();
 
-const autoSimplify = ref(false);
-
-// Store files
-const files = ref({
-  X_test: null,
-  y_true: null,
-  y_pred: null,
-  train: null,     
-  model: null,     
-});
-
-const uploaded = ref({
-  X_test: { ok: false, filename: "", serverPath: "" },
-  y_true: { ok: false, filename: "", serverPath: "" },
-  y_pred: { ok: false, filename: "", serverPath: "" },
-  train: { ok: false, filename: "", serverPath: "" }, 
-  model: { ok: false, filename: "", serverPath: "" }, 
-});
-
-const uploading = ref({
-  X_test: false,
-  y_true: false,
-  y_pred: false,
-  train: false, 
-  model: false, 
-});
-
+// Stato per tenere traccia del dataset selezionato
+const selectedDataset = ref(null);
 const errorMsg = ref("");
+const configId = ref(null);
 
-// Valid extensions
-const acceptTypes =
-  ".xlsx,.xls,.xlsm,.xlsb,.csv,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv,";
-
-  const acceptModelTypes =
-  ".joblib,application/octet-stream";
-
-
-//To move next
-const canGoNext = computed(() => {
-  // Require at least X_test
-  return uploaded.value.X_test.ok;
-});
-
-async function uploadDataset(datasetType, file) {
-  errorMsg.value = "";
-  uploading.value[datasetType] = true;
-
-  //save datasets in backend/storage/uploads
-  try {
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("dataset_type", datasetType);
-    formData.append("auto_simplify", String(autoSimplify.value));
-
-    //SAVE DS FILES IN UPLOAD
-    const res = await fetch("http://localhost:8000/datasets", {
-      method: "POST",
-      body: formData,
-    });
-
-    const data = await res.json().catch(() => ({}));
-    console.log(data)
-    if (!res.ok) {
-      throw new Error(data?.detail || res.statusText);
-    }
-
-    uploaded.value[datasetType] = {
-      ok: true,
-      filename: data?.filename || file.name,
-      serverPath: data?.path || data?.saved_path || "",
-    };
-  } catch (e) {
-    uploaded.value[datasetType] = { ok: false, filename: "", serverPath: "" };
-    errorMsg.value = `[${datasetType}] Upload failed: ${e?.message ?? String(e)}`;
-  } finally {
-    uploading.value[datasetType] = false;
+// Definiamo i nostri dataset "finti" per l'esperimento
+const datasets = [
+  {
+    id: "healthcare",
+    title: "Healthcare Readmission",
+    description: "Predicts the likelihood of a patient being readmitted to the hospital within 30 days.",
+    rows: "10,000",
+    features: "14",
+    sensitive: "Age, Race"
+  },
+  {
+    id: "finance",
+    title: "Credit Risk Scoring",
+    description: "Evaluates loan applications to predict the probability of default.",
+    rows: "45,000",
+    features: "21",
+    sensitive: " Gender, Marital Status"
+  },
+  {
+    id: "hr",
+    title: "HR Candidate Screening",
+    description: "Automated screening of resumes to predict candidate suitability for technical roles.",
+    rows: "8,500",
+    features: "11",
+    sensitive: "Gender, Age"
   }
-}
+];
 
-async function onPick(datasetType, e) {
-  const input = e.target;
-  const file = input.files?.[0];
-  if (!file) return;
-
-  //error message if extension not in list
+function selectDataset(id) {
+  selectedDataset.value = id;
   errorMsg.value = "";
-
-  const ext = "." + file.name.split(".").pop().toLowerCase();
-
-  const allowedDatasetExt = [".xlsx", ".xls", ".xlsm", ".xlsb", ".csv"];
-  const allowedModelExt = [".joblib"];
-
-  const allowed =
-    datasetType === "model" ? allowedModelExt : allowedDatasetExt;
-
-  if (!allowed.includes(ext)) {
-    errorMsg.value =
-      datasetType === "model"
-        ? "Invalid file format. Allowed format: .joblib"
-        : "Invalid file format. Allowed formats: .xlsx, .xls, .xlsm, .xlsb, .csv";
-
-    input.value = "";
-    return;
-  }
-
-  files.value[datasetType] = file;
-
-  // upload immediately
-  await uploadDataset(datasetType, file);
-
-  // picking same file again if needed
-  input.value = "";
 }
 
 function goBack() {
   router.back();
 }
 
-const configId = ref(null);
+// Si può procedere solo se un dataset è stato selezionato
+const canGoNext = computed(() => selectedDataset.value !== null);
 
 async function goNext() {
-  errorMsg.value = "";
+  if (!canGoNext.value) {
+    errorMsg.value = "Please select a dataset to continue.";
+    return;
+  }
 
   try {
-    if (!canGoNext.value) {
-      errorMsg.value = "Upload at least Test Dataset before continuing";
-      return;
-    }
-
-    //If canGoNext -> create first config
+    // Creiamo la configurazione nel backend come faceva il codice originale
     if (!configId.value) {
-      const cfg = {};
-
       const res = await fetch("http://localhost:8000/config", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(cfg),
+        body: JSON.stringify({ dataset_id: selectedDataset.value }), 
       });
 
       const data = await res.json().catch(() => ({}));
 
       if (!res.ok) {
-        throw new Error(data?.detail || `POST /configs failed (HTTP ${res.status})`);
+        throw new Error(data?.detail || `Server error (${res.status})`);
       }
-
       configId.value = data.config_id;
     }
 
+    // Passiamo allo step successivo
     router.push({ path: "/bohe", query: { config_id: configId.value } });
   } catch (e) {
     errorMsg.value = e?.message ?? String(e);
-    console.error(e);
+    console.error("Failed to proceed:", e);
   }
 }
-
-//LAST: everytime -> back, check existing uploads. If X_test present then Next button never disabled
-async function checkExistingUploads() {
-  try {
-    const res = await fetch("http://localhost:8000/datasets/latest-status");
-    const data = await res.json().catch(() => ({}));
-
-    if (!res.ok) {
-      throw new Error(data?.detail || `HTTP ${res.status}`);
-    }
-
-    for (const key of ["X_test", "y_true", "y_pred", "train", "model"]) {
-      if (data?.[key]?.filename) {
-        uploaded.value[key] = {
-          ok: key === "X_test" ? !!data[key].ok : true,
-          filename: data[key].filename,
-          serverPath: "",
-        };
-      }
-    }
-  } catch (e) {
-    console.error("Failed to check existing uploads:", e);
-  }
-}
-
-onMounted(() => {
-  checkExistingUploads();
-});
-
 </script>
 
 <template>
-  <div class="page">
-    
-
-    <!-- Header like Image 2 -->
-    <header class="header">
-      <h1 class="bigTitle">Advanced Configuration:<br />Upload you data</h1>
-
-      <div class="steps">
-        <span class="step"><span class="dot">1</span> Start evaluation</span>
-        <span class="sep">→</span>
-        <span class="step active"><span class="dot filled">2</span> Upload your data</span>
-        <span class="sep">→</span>
-        <span class="step"><span class="dot">3</span> Choose the right</span>
-        <span class="sep">→</span>
-        <span class="step"><span class="dot">4</span> Select sensitive features</span>
-        <span class="sep">→</span>
-        <span class="step"><span class="dot">5</span> Overview metrics</span>
-      </div>
-
-      <p class="subtitle">
-        We’ll start by uploading the dataset and the AI model to be evaluated. If you don’t have this yet, you can return later.
-      </p>
+  <div class="page-layout">
+    <header class="top-nav">
+      <div class="nav-brand">FRIA Project</div>
     </header>
 
-    <main class="layout">
-      <!-- Left warning box (Image 2) -->
-      <aside class="noteBox">
-        <div class="warnIcon">⚠</div>
-        <div class="noteText">
-        <strong>Only the test dataset is required.</strong> All other files are optional
-        and may be left empty for now. The evaluator will automatically compute only the
-        metrics compatible with the data you provide.
+    <main class="hero-container">
+      <div class="hero-content">
+        
+        <button class="back-button" @click="goBack" aria-label="Go back">
+          ← Back
+        </button>
+
+        <h1 class="main-title">Select a Dataset</h1>
+        
+        <p class="description">
+          Choose one of the pre-configured datasets to run the evaluation. 
+          The required data and AI models are already linked.
+        </p>
+
+        <!-- Griglia dei Dataset -->
+        <div class="dataset-grid">
+          <button 
+            v-for="ds in datasets" 
+            :key="ds.id"
+            class="dataset-card"
+            :class="{ 'is-selected': selectedDataset === ds.id }"
+            @click="selectDataset(ds.id)"
+            type="button"
+          >
+            <div class="card-header">
+              <h3 class="card-title">{{ ds.title }}</h3>
+            </div>
+            
+            <p class="card-desc">{{ ds.description }}</p>
+            
+            <!-- Qui entra in gioco JetBrains Mono per i dati tecnici -->
+            <div class="card-meta">
+              <div class="meta-item">
+                <span class="meta-label">ROWS</span>
+                <span class="meta-value">{{ ds.rows }}</span>
+              </div>
+              <div class="meta-item">
+                <span class="meta-label">FEATURES</span>
+                <span class="meta-value">{{ ds.features }}</span>
+              </div>
+              <div class="meta-item">
+                <span class="meta-label">SENSITIVE</span>
+                <span class="meta-value">{{ ds.sensitive }}</span>
+              </div>
+            </div>
+          </button>
+        </div>
+
+        <p v-if="errorMsg" class="error-msg">{{ errorMsg }}</p>
+
       </div>
-      </aside>
-
-      <!-- Form block -->
-      <section class="form">
-        <!-- X_test -->
-        <div class="row">
-          <div class="label">Test dataset </div>
-          <label class="uploadBar">
-            <span class="placeholder">
-              {{ uploaded.X_test.ok ? `File Uploaded: ${uploaded.X_test.filename}` : "Upload datset file format .pkl or csv" }}
-            </span>
-
-            <span v-if="uploading.X_test" class="pill">Uploading…</span>
-            <span v-else-if="uploaded.X_test.ok" class="pill ok">OK</span>
-
-            <input class="fileInput" type="file" :accept="acceptTypes" @change="(e) => onPick('X_test', e)" />
-          </label>
-        </div>
-
-        <!-- y_true -->
-         <div class="row optionalStart">
-          <div class="label">Ground truth dataset</div>
-          <label class="uploadBar">
-            <span class="placeholder">
-              {{ uploaded.y_true.ok ? `File Uploaded: ${uploaded.y_true.filename}` : "Upload ground truth file format .pkl or csv" }}
-            </span>
-
-            <span v-if="uploading.y_true" class="pill">Uploading…</span>
-            <span v-else-if="uploaded.y_true.ok" class="pill ok">OK</span>
-            <input class="fileInput" type="file" :accept="acceptTypes" @change="(e) => onPick('y_true', e)" />
-          </label>
-        </div>
-
-        <!-- y_pred -->
-        <div class="row">
-          <div class="label">Model prediction dataset </div>
-          <label class="uploadBar">
-            <span class="placeholder">
-              {{ uploaded.y_pred.ok ? `File Uploaded: ${uploaded.y_pred.filename}` : "Upload model prediction dataset file format .pkl or csv" }}
-            </span>
-
-            <span v-if="uploading.y_pred" class="pill">Uploading…</span>
-            <span v-else-if="uploaded.y_pred.ok" class="pill ok">OK</span>
-
-            <input class="fileInput" type="file" :accept="acceptTypes" @change="(e) => onPick('y_pred', e)" />
-          </label>
-        </div>
-
-                <!-- train -->
-        <div class="row">
-          <div class="label">Train dataset</div>
-          <label class="uploadBar">
-            <span class="placeholder">
-              {{ uploaded.train.ok ? `Uploaded: ${uploaded.train.filename}` : "Upload train dataset file format .pkl or csv" }}
-            </span>
-
-            <span v-if="uploading.train" class="pill">Uploading…</span>
-            <span v-else-if="uploaded.train.ok" class="pill ok">OK</span>
-
-           <input class="fileInput" type="file" :accept="acceptTypes" @change="(e) => onPick('train', e)" />
-          </label>
-        </div>
-
-        <!-- model -->
-        <div class="row">
-          <div class="label">Model</div>
-          <label class="uploadBar">
-            <span class="placeholder">
-              {{ uploaded.model.ok ? `Uploaded: ${uploaded.model.filename}` : "Upload model file format .joblib" }}
-            </span>
-
-            <span v-if="uploading.model" class="pill">Uploading…</span>
-            <span v-else-if="uploaded.model.ok" class="pill ok">OK</span>
-
-            <input class="fileInput" type="file" :accept="acceptModelTypes" @change="(e) => onPick('model', e)" />
-          </label>
-        </div>
-
-        <!-- Error -->
-        <p v-if="errorMsg" class="error">{{ errorMsg }}</p>
-      </section>
     </main>
 
-    <!-- Bottom navigation (left/back + right/next like Image 2 arrows) -->
+    <!-- Barra di navigazione fissa in basso per i bottoni Back / Next -->
     <div class="bottom-nav">
-      <button class="ghost" @click="goBack" type="button">‹ Back</button>
-
-      <button class="primary" :disabled="!canGoNext" @click="goNext" type="button">
-        Next ›
+      <button class="nav-btn ghost" @click="goBack">Cancel</button>
+      <button class="nav-btn primary" :disabled="!canGoNext" @click="goNext">
+        Next step →
       </button>
     </div>
   </div>
 </template>
 
 <style scoped>
-.page {
+.page-layout {
   min-height: 100vh;
-  background: #fff;
-  padding: 20px 28px 28px;
-  position: relative;
-  font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
-}
-
-.optionalStart {
-  margin-top: 60px;
-}
-
-/* header */
-.header {
-  text-align: center;
-  margin-top: 34px;
-}
-.bigTitle {
-  margin: 0;
-  font-size: 56px;
-  font-weight: 900;
-  line-height: 1.05;
-}
-.subtitle {
-  margin: 14px auto 0;
-  max-width: 880px;
-  font-size: 18px;
-  opacity: 0.85;
-}
-
-/* stepper */
-.steps {
-  margin-top: 18px;
-  display: inline-flex;
-  flex-wrap: wrap;
-  align-items: center;
-  justify-content: center;
-  gap: 10px;
-  font-size: 16px;
-  font-weight: 700;
-}
-.step {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  color: #111;
-}
-.step.active {
-  font-weight: 900;
-}
-.sep {
-  opacity: 0.55;
-}
-.dot {
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  border: 2px solid #e23b3b;
-  color: #e23b3b;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 12px;
-  line-height: 1;
-}
-.dot.filled {
-  background: #e23b3b;
-  color: #fff;
-}
-
-/* main layout like Image 2 */
-.layout {
-  max-width: 1200px;
-  margin: 42px auto 0;
-  display: grid;
-  grid-template-columns: 280px 1fr;
-  gap: 26px;
-  align-items: start;
-  padding: 0 10px;
-}
-
-/* note box */
-.noteBox {
-  border: 3px solid #ff5a3c;
-  border-radius: 18px;
-  padding: 16px 14px;
-  background: #fff7f2;
+  background-color: #faf9f8;
   display: flex;
-  gap: 12px;
-}
-.warnIcon {
-  font-size: 20px;
-  line-height: 1;
-  margin-top: 2px;
-}
-.noteText {
-  font-size: 14px;
-  line-height: 1.35;
+  flex-direction: column;
+  padding-bottom: 80px; /* Spazio per la nav bar in basso */
 }
 
-/* form */
-.form {
-  max-width: 920px;
-}
-.row {
-  margin-bottom: 18px;
-}
-.label {
-  font-size: 22px;
-  font-weight: 800;
-  margin-bottom: 8px;
-}
-.uploadBar {
-  height: 46px;
-  border-radius: 10px;
-  background: #f2f4f7;
+.top-nav {
+  height: 50px;
+  background-color: #1a1a1a;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  padding: 0 14px;
+  padding: 0 2rem;
+}
+
+.nav-brand {
+  color: #ffffff;
+  font-family: 'Inter', sans-serif;
+  font-weight: 600;
+  font-size: 0.9rem;
+  letter-spacing: 0.5px;
+}
+
+.hero-container {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding-top: 5vh;
+}
+
+.hero-content {
+  max-width: 900px; /* Un po' più largo per ospitare le card in orizzontale */
+  width: 100%;
+  padding: 0 2rem;
+}
+
+.back-button {
+  background: none;
+  border: none;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: #888888;
   cursor: pointer;
-  border: 1px solid #e6e8ee;
-}
-.placeholder {
-  font-size: 14px;
-  opacity: 0.8;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  padding-right: 10px;
-}
-.fileInput {
-  display: none;
-}
-.pill {
-  font-size: 12px;
-  padding: 4px 10px;
-  border-radius: 999px;
-  border: 1px solid #cfd6e4;
-  background: #fff;
-}
-.pill.ok {
-  border-color: #82c58e;
-}
-
-/* simplify */
-.simplifyRow {
-  margin-top: 22px;
-  display: flex;
+  padding: 0;
+  margin-bottom: 2rem;
+  display: inline-flex;
   align-items: center;
+  transition: all 0.2s ease;
+}
+
+.back-button:hover {
+  color: #111111;
+  transform: translateX(-4px);
+}
+
+.main-title {
+  font-family: 'Instrument Serif', serif;
+  font-size: 4rem;
+  color: #1243e3;
+  font-weight: 400;
+  margin-bottom: 1rem;
+  line-height: 1.1;
+}
+
+.description {
+  font-family: 'Inter', sans-serif;
+  font-size: 1.1rem;
+  color: #555555;
+  line-height: 1.6;
+  margin-bottom: 3rem;
+  max-width: 700px;
+}
+
+/* =========================================
+   GRIGLIA DATASET (CARD)
+   ========================================= */
+.dataset-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.dataset-card {
+  background: #ffffff;
+  border: 1px solid #e5e5e5;
+  border-radius: 8px;
+  padding: 1.5rem;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  display: flex;
+  flex-direction: column;
+}
+
+.dataset-card:hover {
+  border-color: #111111;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+  transform: translateY(-2px);
+}
+
+/* Stato Attivo (Selezionato) */
+.dataset-card.is-selected {
+  border-color: #1243e3; /* Il tuo blu */
+  background: #f4f6fe; /* Sfondo azzurrino leggerissimo */
+  box-shadow: 0 0 0 1px #1243e3; /* Bordo più spesso visivamente */
+}
+
+.card-title {
+  font-family: 'Instrument Serif', serif;
+  font-size: 1.8rem;
+  color: #111111;
+  margin: 0 0 0.8rem 0;
+  font-weight: 400;
+}
+
+.card-desc {
+  font-family: 'Inter', sans-serif;
+  font-size: 0.95rem;
+  color: #666666;
+  line-height: 1.5;
+  margin: 0 0 1.5rem 0;
+  flex: 1; /* Spinge i metadati in basso */
+}
+
+/* Qui usiamo JetBrains Mono! */
+.card-meta {
+  background: #faf9f8;
+  padding: 1rem;
+  border-radius: 4px;
+  border: 1px solid #f0f0f0;
+}
+
+.dataset-card.is-selected .card-meta {
+  background: #ffffff; /* Fa risaltare il box interno se la card è azzurrina */
+}
+
+.meta-item {
+  display: flex;
   justify-content: space-between;
-  gap: 14px;
-}
-.simplifyTitle {
-  font-size: 18px;
-  font-weight: 800;
-  color: #6c6f73;
-}
-.simplifySub {
-  font-size: 13px;
-  color: #8a8d91;
+  margin-bottom: 0.5rem;
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 0.75rem;
 }
 
-/* error */
-.error {
-  margin-top: 14px;
-  color: #b00020;
-  font-weight: 700;
+.meta-item:last-child {
+  margin-bottom: 0;
 }
 
-/* arrows bottom */
+.meta-label {
+  color: #888888;
+  letter-spacing: 0.5px;
+}
+
+.meta-value {
+  color: #111111;
+  font-weight: 600;
+}
+
+/* =========================================
+   BOTTOM NAV E BOTTONI
+   ========================================= */
 .bottom-nav {
   position: fixed;
-  left: 28px;
-  right: 28px;
-  bottom: 20px;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 80px;
+  background: #ffffff;
+  border-top: 1px solid #e5e5e5;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  padding: 0 2rem;
+  z-index: 10;
+}
+
+.nav-btn {
+  font-family: 'Inter', sans-serif;
+  font-weight: 600;
+  font-size: 0.95rem;
+  padding: 0.8rem 1.5rem;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
 }
 
 .ghost {
   background: transparent;
-  border: 1px solid #111;
-  padding: 10px 18px;
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 16px;
+  color: #666666;
+  border: 1px solid transparent;
+}
+
+.ghost:hover {
+  color: #111111;
 }
 
 .primary {
-  background: #111;
-  color: #fff;
-  border: none;
-  padding: 10px 18px;
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 16px;
+  background: #111111;
+  color: #ffffff;
+  border: 1px solid #111111;
+}
+
+.primary:hover:not(:disabled) {
+  background: #1243e3; /* Passa al tuo blu al click */
+  border-color: #1243e3;
 }
 
 .primary:disabled {
-  opacity: 0.3;
+  background: #e5e5e5;
+  color: #a0a0a0;
+  border-color: #e5e5e5;
   cursor: not-allowed;
 }
 
-.primary:not(:disabled) {
-  background: #fff;
-  color: #111;
-  border: 1px solid #111;
-  cursor: pointer;
+.error-msg {
+  color: #d32f2f;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.9rem;
+  margin-top: 1rem;
 }
-
 </style>

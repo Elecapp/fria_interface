@@ -1,7 +1,4 @@
 <script setup>
-
-//http://localhost:5173/cr
-
 import { ref, computed, onMounted } from "vue";
 import { useRouter } from "vue-router";
 
@@ -9,34 +6,28 @@ const router = useRouter();
 
 const error = ref("");
 const registry = ref({});
-const rights = ref([]); // [{ key, label, description }]
-const selectedRights = ref({}); // { [rightKey]: boolean }
+const rights = ref([]); 
+const selectedRights = ref({}); 
 
-//Display Right nicely
+// Formatta il nome del diritto in modo leggibile
 function titleizeRight(key) {
   return key
     .replace(/_/g, " ")
     .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-//From registry: find rights + toggle
+// Estrae i diritti dal registro del backend
 function buildRightsFromRegistry(reg) {
   const set = new Set();
 
-   //id to be sent to .json config
-  Object.values(reg).forEach((spec) => {
-  console.log(spec.id);
-    });
-
-    Object.values(reg || {}).forEach((spec) => {
-      if (spec?.right) set.add(spec.right); // <-- right id
-    });
+  Object.values(reg || {}).forEach((spec) => {
+    if (spec?.right) set.add(spec.right); 
+  });
 
   const out = [...set].map((rightId) => ({
-      id: rightId, //put id to config
+      id: rightId,
       label: titleizeRight(rightId),
-      description:
-        `Evaluate metrics available for the "${titleizeRight(rightId)}"`,
+      description: `Evaluate metrics available for the "${titleizeRight(rightId)}"`,
   }));
 
   const toggles = {};
@@ -46,11 +37,11 @@ function buildRightsFromRegistry(reg) {
   return out;
 }
 
-//FIRST: build registry in backend -> onMounted
+// Carica il registro dal backend all'avvio
 async function fetchRegistry() {
   error.value = "";
   try {
-    const res = await fetch("http://127.0.0.1:8000/plugin-registry"); //get what is available in the system
+    const res = await fetch("http://127.0.0.1:8000/plugin-registry");
     if (!res.ok) {
       error.value = `Failed to load plugin registry (HTTP ${res.status}).`;
       return;
@@ -66,33 +57,36 @@ async function fetchRegistry() {
 
 onMounted(fetchRegistry);
 
-//Rights to compute:["privacy", "fairness"]
+// Diritti selezionati pronti per essere inviati
 const rights_to_evaluate = computed(() =>
   Object.entries(selectedRights.value)
     .filter(([_, v]) => v)
     .map(([k]) => k)
 );
 
-//To move next
-  const canGoNext = computed(() => {
-    //At least one selected
-    return rights_to_evaluate.value.length > 0;
-  });
+// Controllo per il bottone Next
+const canGoNext = computed(() => {
+  return rights_to_evaluate.value.length > 0;
+});
+
+// Funzione di selezione interattiva per il design
+function toggleRight(id) {
+  selectedRights.value[id] = !selectedRights.value[id];
+}
 
 function goBack() {
   router.back();
 }
 
+// Invia al backend e procede
 async function goNext() {
   error.value = "";
 
-
   if (rights_to_evaluate.value.length === 0) {
-    error.value = "At least one right must be selected to continue.";
+    error.value = "At least one evaluation criteria must be selected.";
     return;
   }
 
-  //build payload for config
   const cfg = {
     rights_to_evaluate: rights_to_evaluate.value,
     auto_simplify: false,
@@ -111,26 +105,24 @@ async function goNext() {
       return;
     }
 
-    const data = await res.json(); //read content of capability report to 
+    const data = await res.json(); 
     localStorage.setItem("config_id", data.config_id);
 
     function normalizeRightId(s) {
-  return (s || "")
-    .trim()
-    .toLowerCase()
-    .replace(/\s+/g, "_");
-}
+      return (s || "").trim().toLowerCase().replace(/\s+/g, "_");
+    }
 
-const normalizedRights = rights_to_evaluate.value.map(normalizeRightId);
+    const normalizedRights = rights_to_evaluate.value.map(normalizeRightId);
 
-//depends if called fairness or non_discrimination -> /isf else /em
-if (normalizedRights.includes("fairness") || 
-    normalizedRights.includes("non_discrimination")
-) {
-  router.push("/isf");
-} else {
-  router.push("/em");
-}
+    // Smistamento intelligente della rotta
+    if (
+      normalizedRights.includes("fairness") || 
+      normalizedRights.includes("non_discrimination")
+    ) {
+      router.push("/isf");
+    } else {
+      router.push("/em");
+    }
   } catch (e) {
     error.value = `Backend not reachable / CORS / network error: ${e?.message || e}`;
   }
@@ -138,324 +130,292 @@ if (normalizedRights.includes("fairness") ||
 </script>
 
 <template>
-  <div class="page">
-    
+  <div class="page-layout">
+    <header class="top-nav">
+      <div class="nav-brand">FRIA Project</div>
+    </header>
 
-    <div class="wrap">
-      <!-- Title -->
-      <h1 class="title">
-        Step 2- Choose the rights<br />
-        you want to evaluate
-      </h1>
-
-      <!-- Stepper -->
-      <div class="stepper">
-        <span class="step"><span class="num">1</span>Start evaluation</span>
-        <span class="sep">→</span>
-        <span class="step"><span class="num">2</span>Upload your data</span>
-        <span class="sep">→</span>
-        <span class="step active"><span class="num active">3</span>Choose the right</span>
-        <span class="sep">→</span>
-        <span class="step"><span class="num">4</span>Select sensitive features</span>
-        <span class="sep">→</span>
-        <span class="step"><span class="num">5</span>Overview metrics</span>
-      </div>
-
-      <!-- Intro -->
-      <p class="intro">
-        AI systems can impact different types of fundamental rights.<br />
-        In this step, select the rights that are relevant to your context of use.
-      </p>
-
-      <!-- Main content -->
-      <div class="grid">
-        <!-- Note box -->
-        <div class="note">
-          <div class="note-head">
-            <span class="note-info">i</span>
-            <span class="note-title">Note:</span>
-          </div>
-
-          <p class="note-body">
-            If you're unsure, you can<br />
-            select both. The evaluator will<br />
-            adapt based on your input.<br /><br />
-            <strong>At least one right must be<br />selected to continue.</strong>
-          </p>
-        </div>
-
-        <!-- Rights -->
-        <div class="rights">
-          <div v-if="rights.length === 0 && !error" class="right-desc">
-            Loading rights...
-          </div>
-
-          <div v-for="r in rights" :key="r.id" class="right-row">
-            <div class="right-text">
-              <div class="right-name">{{ r.label }}</div>
-              <div class="right-desc">
-                <strong>{{ r.description }}</strong>
-              </div>
-            </div>
-
-            <label class="switch">
-              <input type="checkbox" v-model="selectedRights[r.id]" />
-              <span class="slider"></span>
-            </label>
-          </div>
-
-          <p v-if="error" class="error">{{ error }}</p>
-        </div>
-      </div>
-
-      <!-- Bottom navigation (left/back + right/next like Image 2 arrows) -->
-      <div class="bottom-nav">
-        <button class="ghost" @click="goBack" type="button">‹ Back</button>
-
-        <button class="primary" :disabled="!canGoNext" @click="goNext" type="button">
-          Next ›
+    <main class="hero-container">
+      <div class="hero-content">
+        
+        <button class="back-button" @click="goBack" aria-label="Go back">
+          ← Back
         </button>
+
+        <h1 class="main-title">Evaluation Criteria</h1>
+        
+        <p class="description">
+          AI systems can impact different fundamental rights. Select the principles that are relevant to your specific context of use. You can select more than one.
+        </p>
+
+        <!-- Lista di Selezione Diritti -->
+        <div class="rights-list">
+          
+          <div v-if="rights.length === 0 && !error" class="loading-state">
+            Loading available criteria from system...
+          </div>
+
+          <button 
+            v-for="r in rights" 
+            :key="r.id" 
+            class="right-card"
+            :class="{ 'is-selected': selectedRights[r.id] }"
+            @click="toggleRight(r.id)"
+            type="button"
+          >
+            <!-- Checkbox Visuale Custom -->
+            <div class="custom-checkbox">
+              <svg v-if="selectedRights[r.id]" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="20 6 9 17 4 12"></polyline>
+              </svg>
+            </div>
+            
+            <div class="right-text">
+              <h3 class="right-name">{{ r.label }}</h3>
+              <p class="right-desc">{{ r.description }}</p>
+            </div>
+          </button>
+
+        </div>
+
+        <p v-if="error" class="error-msg">{{ error }}</p>
+
       </div>
+    </main>
+
+    <!-- Bottom Navigation -->
+    <div class="bottom-nav">
+      <button class="nav-btn ghost" @click="goBack">Cancel</button>
+      <button class="nav-btn primary" :disabled="!canGoNext" @click="goNext">
+        Next step →
+      </button>
     </div>
   </div>
 </template>
 
 <style scoped>
-.page {
+.page-layout {
   min-height: 100vh;
-  background: #fff;
-  padding: 24px 28px 28px;
-  position: relative;
+  background-color: #faf9f8;
+  display: flex;
+  flex-direction: column;
+  padding-bottom: 80px;
 }
 
-/* top-left select */
-.top-left {
-  position: fixed;
-  top: 18px;
-  left: 18px;
-  z-index: 10;
+.top-nav {
+  height: 50px;
+  background-color: #1a1a1a;
+  display: flex;
+  align-items: center;
+  padding: 0 2rem;
 }
 
-.select {
-  font-size: 16px;
-  padding: 6px 14px;
-  border: 2px solid #000;
-  border-radius: 999px;
-  background: #fff;
-  outline: none;
+.nav-brand {
+  color: #ffffff;
+  font-family: 'Inter', sans-serif;
+  font-weight: 600;
+  font-size: 0.9rem;
+  letter-spacing: 0.5px;
 }
 
-/* wrapper */
-.wrap {
-  max-width: 1200px;
-  margin: 0 auto;
-  padding: 18px 24px 90px;
-  position: relative;
-}
-
-/* title */
-.title {
-  text-align: center;
-  font-size: 64px;
-  font-weight: 900;
-  line-height: 1.05;
-  margin: 10px 0 12px;
-}
-
-/* stepper */
-.stepper {
-  margin-top: 22px;
+.hero-container {
+  flex: 1;
   display: flex;
   justify-content: center;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-  font-size: 20px;
+  align-items: flex-start;
+  padding-top: 5vh;
 }
-.step {
+
+.hero-content {
+  max-width: 800px;
+  width: 100%;
+  padding: 0 2rem;
+}
+
+.back-button {
+  background: none;
+  border: none;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.95rem;
+  font-weight: 500;
+  color: #888888;
+  cursor: pointer;
+  padding: 0;
+  margin-bottom: 2rem;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  font-weight: 600;
+  transition: all 0.2s ease;
 }
-.num {
-  width: 22px;
-  height: 22px;
-  border-radius: 999px;
-  border: 2px solid #ff4d4d;
-  color: #ff4d4d;
-  display: inline-flex;
+
+.back-button:hover {
+  color: #111111;
+  transform: translateX(-4px);
+}
+
+.main-title {
+  font-family: 'Instrument Serif', serif;
+  font-size: 4rem;
+  color: #1243e3;
+  font-weight: 400;
+  margin-bottom: 1rem;
+  line-height: 1.1;
+}
+
+.description {
+  font-family: 'Inter', sans-serif;
+  font-size: 1.1rem;
+  color: #555555;
+  line-height: 1.6;
+  margin-bottom: 3rem;
+  max-width: 700px;
+}
+
+/* =========================================
+   LISTA DEI DIRITTI (SELEZIONE)
+   ========================================= */
+.rights-list {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.loading-state {
+  font-family: 'Inter', sans-serif;
+  color: #888;
+  font-style: italic;
+}
+
+.right-card {
+  background: #ffffff;
+  border: 1px solid #e5e5e5;
+  border-radius: 8px;
+  padding: 1.5rem;
+  text-align: left;
+  cursor: pointer;
+  display: flex;
+  align-items: flex-start;
+  gap: 1.5rem;
+  transition: all 0.2s ease;
+}
+
+.right-card:hover {
+  border-color: #111111;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+}
+
+/* Stato Attivo (Selezionato) */
+.right-card.is-selected {
+  border-color: #1243e3;
+  background: #f4f6fe;
+}
+
+/* Checkbox Custom */
+.custom-checkbox {
+  width: 24px;
+  height: 24px;
+  flex-shrink: 0;
+  border: 2px solid #d1d5db;
+  border-radius: 4px;
+  margin-top: 0.2rem;
+  display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 14px;
-  font-weight: 900;
+  transition: all 0.2s ease;
+  background: #fff;
 }
-.num.active {
-  background: #ff4d4d;
+
+.right-card.is-selected .custom-checkbox {
+  background: #1243e3;
+  border-color: #1243e3;
+}
+
+.custom-checkbox svg {
+  width: 14px;
+  height: 14px;
   color: #fff;
 }
-.step.active {
-  font-weight: 900;
-}
-.sep {
-  color: #777;
+
+.right-text {
+  flex: 1;
 }
 
-/* intro */
-.intro {
-  text-align: center;
-  font-size: 22px;
-  margin: 18px 0 34px;
-  color: #111;
+.right-name {
+  font-family: 'Instrument Serif', serif;
+  font-size: 2rem;
+  color: #111111;
+  margin: 0 0 0.4rem 0;
+  font-weight: 400;
 }
 
-/* grid: note + rights */
-.grid {
-  display: grid;
-  grid-template-columns: 420px 1fr;
-  gap: 38px;
-  align-items: start;
-  margin-top: 10px;
-}
-
-/* note box */
-.note {
-  background: #fdebb6;
-  border: 2px solid #ff4d4d;
-  border-radius: 26px;
-  padding: 26px 26px;
-}
-.note-head {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  margin-bottom: 12px;
-}
-.note-info {
-  width: 34px;
-  height: 34px;
-  border-radius: 999px;
-  border: 3px solid #555;
-  color: #555;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 900;
-  font-size: 20px;
-}
-.note-title {
-  font-weight: 900;
-  font-size: 22px;
-}
-.note-body {
-  font-size: 22px;
-  line-height: 1.25;
+.right-desc {
+  font-family: 'Inter', sans-serif;
+  font-size: 1rem;
+  color: #666666;
+  line-height: 1.5;
   margin: 0;
 }
 
-/* rights */
-.rights {
-  padding-top: 10px;
-}
-.right-row {
-  display: grid;
-  grid-template-columns: 1fr 90px;
-  align-items: center;
-  margin-bottom: 26px;
-}
-.right-name {
-  font-size: 34px;
-  font-weight: 400;
-  margin-bottom: 4px;
-}
-.right-desc {
-  font-size: 18px;
-  line-height: 1.25;
-}
-
-/* switch (grey track like screenshot) */
-.switch {
-  position: relative;
-  display: inline-block;
-  width: 54px;
-  height: 30px;
-  justify-self: end;
-}
-.switch input {
-  opacity: 0;
-  width: 0;
-  height: 0;
-}
-.slider {
-  position: absolute;
-  inset: 0;
-  background: #d9d9d9;
-  border-radius: 999px;
-}
-
-.slider:before {
-  content: "";
-  position: absolute;
-  height: 22px;
-  width: 22px;
-  left: 3px;
-  top: 3px;
-  background: #fff;
-  border-radius: 50%;
-  transition: 0.2s;
-}
-
-.switch input:checked + .slider:before {
-  transform: translateX(24px);
-}
-
-/* error */
-.error {
-  color: #b00020;
-  font-weight: 700;
-  margin-top: 12px;
-}
-
-/* arrows bottom */
+/* =========================================
+   BOTTOM NAV
+   ========================================= */
 .bottom-nav {
   position: fixed;
-  left: 28px;
-  right: 28px;
-  bottom: 20px;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 80px;
+  background: #ffffff;
+  border-top: 1px solid #e5e5e5;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  padding: 0 2rem;
+  z-index: 10;
+}
+
+.nav-btn {
+  font-family: 'Inter', sans-serif;
+  font-weight: 600;
+  font-size: 0.95rem;
+  padding: 0.8rem 1.5rem;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: all 0.2s ease;
 }
 
 .ghost {
   background: transparent;
-  border: 1px solid #111;
-  padding: 10px 18px;
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 16px;
+  color: #666666;
+  border: 1px solid transparent;
+}
+
+.ghost:hover {
+  color: #111111;
 }
 
 .primary {
-  background: #111;
-  color: #fff;
-  border: none;
-  padding: 10px 18px;
-  border-radius: 8px;
-  cursor: pointer;
-  font-size: 16px;
+  background: #111111;
+  color: #ffffff;
+  border: 1px solid #111111;
+}
+
+.primary:hover:not(:disabled) {
+  background: #1243e3;
+  border-color: #1243e3;
 }
 
 .primary:disabled {
-  opacity: 0.3;
+  background: #e5e5e5;
+  color: #a0a0a0;
+  border-color: #e5e5e5;
   cursor: not-allowed;
 }
 
-.primary:not(:disabled) {
-  background: #fff;
-  color: #111;
-  border: 1px solid #111;
-  cursor: pointer;
+.error-msg {
+  color: #d32f2f;
+  font-family: 'Inter', sans-serif;
+  font-size: 0.9rem;
+  margin-top: 1rem;
 }
-
 </style>
