@@ -16,3 +16,18 @@ venv/
 backend/storage/uploads/*
 !backend/storage/uploads/.gitkeep
 backend/storage/summary/*.json
+
+# File di configurazione temporanei
+backend/storage/configs/*
+!backend/storage/configs/.gitkeep
+
+# Log ed esecuzioni temporanee (runs)
+backend/storage/runs/*
+!backend/storage/runs/.gitkeep
+
+# Output generati dall'evaluator (Risultati e Report)
+backend/storage/reports/*
+!backend/storage/reports/.gitkeep
+
+backend/storage/results/*
+!backend/storage/results/.gitkeep
