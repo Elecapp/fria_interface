@@ -1,0 +1,197 @@
+{
+  "new_metric": {
+    "id": "new_metric",
+    "name": "New Metric",
+    "right": "New Right",
+    "description": "New metric used to test parameters: uses first numeric column in Test Dataset",
+    "interpretation": "",
+    "requires": [
+      "X_test"
+    ],
+    "plugin_path": "plugins.new_right.new_metric",
+    "params": [
+      {
+        "key": "threshold",
+        "type": "float",
+        "required": true,
+        "default": null,
+        "label": "Threshold",
+        "help": "If computed value > threshold, return threshold; otherwise return computed value.",
+        "enum": null
+      }
+    ],
+    "need_sensitive_feature": false,
+    "needs_all_sensitive_features": false,
+    "needs_conditional_variable": false
+  },
+  "anonymity_set_size": {
+    "id": "anonymity_set_size",
+    "name": "Anonymity Set Size",
+    "right": "Privacy",
+    "description": "Computes anonymity set sizes for combinations of sensitive features (quasi-identifiers).",
+    "interpretation": "",
+    "requires": [
+      "X_test"
+    ],
+    "plugin_path": "plugins.privacy.anonymity_set_size",
+    "params": [
+      {
+        "key": "sensitive_features",
+        "type": "list[string]",
+        "required": true,
+        "default": null,
+        "label": "Sensitive features",
+        "help": "Select one or more sensitive feature columns (e.g., sex, age).",
+        "enum": null
+      }
+    ],
+    "need_sensitive_feature": true,
+    "needs_all_sensitive_features": true,
+    "needs_conditional_variable": false
+  },
+  "k_anonymity": {
+    "id": "k_anonymity",
+    "name": "K-Anonymity",
+    "right": "Privacy",
+    "description": "Evaluates K-Anonymity over quasi-identifiers (each equivalence class must have at least k records).",
+    "interpretation": "",
+    "requires": [
+      "X_test"
+    ],
+    "plugin_path": "plugins.privacy.k_anonymity",
+    "params": [
+      {
+        "key": "k_value",
+        "type": "int",
+        "required": true,
+        "default": 2,
+        "label": "k value",
+        "help": "Minimum group size for k-anonymity compliance.",
+        "enum": null
+      },
+      {
+        "key": "quasi_identifiers",
+        "type": "list[string]",
+        "required": false,
+        "default": null,
+        "label": "Quasi-identifiers",
+        "help": "Columns used to form equivalence classes. If empty, falls back to the selected sensitive_features.",
+        "enum": null
+      }
+    ],
+    "need_sensitive_feature": false,
+    "needs_all_sensitive_features": true,
+    "needs_conditional_variable": false
+  },
+  "l_diversity": {
+    "id": "l_diversity",
+    "name": "L-Diversity",
+    "right": "Privacy",
+    "description": "Computes L-Diversity by grouping on quasi-identifiers and counting distinct values of a sensitive attribute.",
+    "interpretation": "",
+    "requires": [
+      "X_test"
+    ],
+    "plugin_path": "plugins.privacy.l_diversity",
+    "params": [
+      {
+        "key": "quasi_identifiers",
+        "type": "list[string]",
+        "required": true,
+        "default": [],
+        "label": "Quasi-identifiers",
+        "help": "Columns used to form groups. If empty, falls back to selected sensitive_features.",
+        "enum": null
+      },
+      {
+        "key": "sensitive_attribute",
+        "type": "string",
+        "required": false,
+        "default": null,
+        "label": "Sensitive attribute",
+        "help": "Column name whose diversity within each group is measured.",
+        "enum": null
+      },
+      {
+        "key": "l_value",
+        "type": "int",
+        "required": true,
+        "default": 2,
+        "label": "l value",
+        "help": "Minimum number of distinct sensitive values required in each equivalence class.",
+        "enum": null
+      }
+    ],
+    "need_sensitive_feature": false,
+    "needs_all_sensitive_features": true,
+    "needs_conditional_variable": false
+  },
+  "mutual_information": {
+    "id": "mutual_information",
+    "name": "Mutual Information",
+    "right": "Privacy",
+    "description": "Computes Mutual Information between each feature and a selected sensitive attribute.",
+    "interpretation": "",
+    "requires": [
+      "X_test"
+    ],
+    "plugin_path": "plugins.privacy.mutual_information",
+    "params": [
+      {
+        "key": "sensitive_attribute",
+        "type": "string",
+        "required": true,
+        "default": null,
+        "label": "Sensitive Attribute",
+        "help": "Column used as target variable for Mutual Information computation.",
+        "enum": null
+      },
+      {
+        "key": "columns_to_exclude",
+        "type": "list[string]",
+        "required": false,
+        "default": [],
+        "label": "Columns to Exclude",
+        "help": "Columns excluded from MI computation (besides the sensitive attribute).",
+        "enum": null
+      }
+    ],
+    "need_sensitive_feature": false,
+    "needs_all_sensitive_features": true,
+    "needs_conditional_variable": false
+  },
+  "t_closeness": {
+    "id": "t_closeness",
+    "name": "T-Closeness",
+    "right": "Privacy",
+    "description": "Computes Wasserstein distance between global and group distributions of a sensitive attribute, grouped by quasi-identifiers.",
+    "interpretation": "",
+    "requires": [
+      "X_test"
+    ],
+    "plugin_path": "plugins.privacy.t_closeness",
+    "params": [
+      {
+        "key": "quasi_identifiers",
+        "type": "list[string]",
+        "required": true,
+        "default": null,
+        "label": "Quasi-identifiers",
+        "help": "Columns used to form groups. If empty, falls back to selected sensitive_features.",
+        "enum": null
+      },
+      {
+        "key": "sensitive_attribute",
+        "type": "string",
+        "required": false,
+        "default": null,
+        "label": "Sensitive attribute",
+        "help": "Column whose distribution is compared globally vs within each group.",
+        "enum": null
+      }
+    ],
+    "need_sensitive_feature": false,
+    "needs_all_sensitive_features": true,
+    "needs_conditional_variable": false
+  }
+}

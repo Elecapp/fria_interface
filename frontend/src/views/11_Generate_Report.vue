@@ -3,6 +3,7 @@ import { onMounted, ref, computed, nextTick } from "vue";
 import { useRoute } from "vue-router";
 
 import CoverPage1 from "../components/report/0CoverPage.vue";
+import ContextPage from "../components/report/01ContextPage.vue";
 import MetricReportPage2 from "../components/report/1MetricReportPage.vue";
 import LastPage3 from "../components/report/2LastPage.vue";
 
@@ -42,6 +43,13 @@ const reportJson = ref({});
 
 //pagination for the scores
 const summaryPages = ref([]);
+
+//info from user
+const friaContext = ref({
+  description_of_processes: "",
+  period_and_frequency_of_use: "",
+  affected_persons_and_groups: "",
+});
 
 function resolveSchema(metricKey, schemaMap) {
   return schemaMap?.[metricKey]?.schema ?? null;
@@ -327,6 +335,23 @@ onMounted(async () => {
       evaluator: data?.evaluator ?? meta.value.evaluator,
     };
 
+    //fetch for first page
+    const configRes = await fetch("http://127.0.0.1:8000/configs/latest");
+    if (!configRes.ok) throw new Error(await configRes.text());
+    const configPayload = await configRes.json();
+    const cfg = configPayload.config || configPayload;
+
+    friaContext.value = {
+      description_of_processes:
+        cfg.description_of_processes || "",
+
+      period_and_frequency_of_use:
+        cfg.period_and_frequency_of_use || "",
+
+      affected_persons_and_groups:
+        cfg.affected_persons_and_groups || "",
+    };
+
     //get the content of the _report
     const reportRes = await fetch(`http://127.0.0.1:8000/results/${runId.value}_report`);
     if (!reportRes.ok) throw new Error(await reportRes.text());
@@ -354,13 +379,17 @@ onMounted(async () => {
       await document.fonts.ready;
     }
 
+    await new Promise((resolve) => requestAnimationFrame(() => resolve()));
+    await new Promise((resolve) => requestAnimationFrame(() => resolve()));
+    await new Promise((resolve) => setTimeout(resolve, 300));
+
     window.__REPORT_READY__ = true;
 
     
     if (!isPrintMode.value) {
       setTimeout(() => {
       generatePdf();
-      });
+      }, 300);
     }
       
 
@@ -386,10 +415,23 @@ onMounted(async () => {
 
       <!-- Page 2 -->
       <section class="pdfPage">
-        <MetricReportPage2 :meta="meta" page-number="2" />
+        <ContextPage
+          :meta="meta"
+          :fria-context="friaContext"
+          page-number="2"
+        />
       </section>
 
-      <!-- Page 3+ -->
+      <!-- Page 2 -->
+      <section class="pdfPage">
+        <MetricReportPage2
+          :meta="meta"
+          :fria-context="friaContext"
+          page-number="3"
+        />
+      </section>
+
+      <!-- Page 4+ -->
       <section
         v-for="(page, index) in metricPages"
         :key="page.id"
@@ -401,7 +443,7 @@ onMounted(async () => {
           :meta="meta"
           :metric-key="page.metricKey"
           :feature-key="page.featureKey"
-          :page-number="index + 3"
+          :page-number="index + 4"
         />
       </section>
 
@@ -430,6 +472,7 @@ onMounted(async () => {
 
 /* A4 portrait page box */
 .pdfPage {
+  position: relative;
   width: 210mm;
   height: 297mm;
   background: #fff;

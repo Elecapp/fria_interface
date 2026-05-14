@@ -1,6 +1,14 @@
 <script setup>
 const props = defineProps({
   meta: { type: Object, required: true },
+  friaContext: {
+    type: Object,
+    default: () => ({
+      description_of_processes: "",
+      period_and_frequency_of_use: "",
+      affected_persons_and_groups: "",
+    }),
+  },
   pageNumber: { type: [String, Number], default: 2 },
 });
 </script>
@@ -78,6 +86,7 @@ const props = defineProps({
         </div>
       </div>
     </div>
+
     <div class="page-number">
       {{ pageNumber }}
     </div>
@@ -122,6 +131,33 @@ const props = defineProps({
   margin: 0 0 22px;
   font-weight: 800;
   line-height: 1.15;
+}
+
+
+.fria-context {
+  margin-top: 28px;
+}
+
+.fria-block {
+  margin-top: 50px;
+  margin-bottom: 30px;
+}
+
+.fria-block h3 {
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.2;
+  text-align: left;
+  margin: 0 0 4px 0;
+}
+
+.fria-block p {
+  font-size: 11px;
+  line-height: 1.3;
+  color: #222;
+  margin: 0;
+  text-align: left;
+  white-space: pre-line;
 }
 
 /* legend layout */

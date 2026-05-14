@@ -44,16 +44,27 @@ def save_config(cfg_path: ConfigIn):
 
     return {"config_id": cfg_path_id}
 
-#POST: save datasets with {cfg_path_id}_X_test
+#POST: save datasets with {cfg_path_id}
 @configs_router.post("/config")
 def save_config(cfg_path: ConfigIn):
-    cfg_path_id = get_config_id() 
+    latest = latest_config_path()
+    cfg_path_id = latest.stem
     path = CONFIG_DIR / f"{cfg_path_id}.json"
 
-    payload = cfg_path.model_dump()
-    path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    # load current config first
+    current_cfg = json.loads(path.read_text(encoding="utf-8"))
 
-    attach_uploads_to_config(path, UPLOAD_DIR) #save files from uploads to config.json
+    # new incoming payload
+    incoming = cfg_path.model_dump(exclude_unset=True)
+
+    # merge top-level fields
+    current_cfg.update(incoming)
+
+    # write merged config
+    path.write_text(json.dumps(current_cfg, indent=2, ensure_ascii=False), encoding="utf-8")
+
+    # then attach uploaded file paths
+    attach_uploads_to_config(path, UPLOAD_DIR)
 
     return {"config_id": cfg_path_id}
 
@@ -166,6 +177,30 @@ def update_latest_metrics(payload: Update):
         raise HTTPException(status_code=500, detail=f"Failed to write latest config: {e}")
 
     return {"config_id": path.stem, "config": cfg_path}
+
+#Update FRIA CONTEXT:
+class FRIAContextPayload(BaseModel):
+    description_of_processes: str = ""
+    period_and_frequency_of_use: str = ""
+    affected_persons_and_groups: str = ""
+
+@configs_router.put("/configs/update_fria_context")
+def update_fria_context(payload: FRIAContextPayload):
+    latest_cfg = latest_config_path()  # use your existing helper
+    if not latest_cfg.exists():
+        raise HTTPException(status_code=404, detail="No config file found")
+
+    cfg = json.loads(latest_cfg.read_text(encoding="utf-8"))
+
+    cfg["description_of_processes"] = payload.description_of_processes
+    cfg["period_and_frequency_of_use"] = payload.period_and_frequency_of_use
+    cfg["affected_persons_and_groups"] = payload.affected_persons_and_groups
+
+    latest_cfg.write_text(json.dumps(cfg, indent=2, ensure_ascii=False), encoding="utf-8")
+
+    return {"ok": True}
+
+
 
 #Save parameters selected for metrics.json
 class ParametersPayload(RootModel[Dict[str, Dict[str, Any]]]): 
