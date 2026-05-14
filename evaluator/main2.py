@@ -31,6 +31,7 @@ def resolve_config_path(default_dir: str = "config") -> Path:
     
     parser = argparse.ArgumentParser(add_help=False) 
     parser.add_argument("--config", type=str, help="Path to the JSON configuration file")
+    parser.add_argument("--config-json", dest="config_json", type=str, help="Raw JSON string from frontend")
     known, _ = parser.parse_known_args()
     print(known)
     # 1) CLI  -> pass config

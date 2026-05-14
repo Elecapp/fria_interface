@@ -2,526 +2,261 @@
 import { computed } from "vue";
 
 const props = defineProps({
-  node: {
-    type: Object,
-    required: true,
-  },
-  meta: {
-    type: Object,
-    default: () => ({}),
-  },
-  metricKey: {
-    type: String,
-    default: "",
-  },
-  featureKey: {
-    type: String,
-    default: null,
-  },
-  pageNumber: {
-    type: Number,
-    default: 1,
-  },
+  node: { type: Object, required: true },
+  meta: { type: Object, default: () => ({}) },
+  metricKey: { type: String, default: "" },
+  featureKey: { type: String, default: null },
+  pageNumber: { type: Number, default: 1 },
 });
 
-const context = computed(() => props.node?.context_report ?? {}); //identify the context_report part
-const summary = computed(() => props.node?.summary_report ?? {}); //identify the summary_report part
-const total_score = computed(() => props.node?.total_score_report?? "-") //total score
-const weight = computed(() => props.node?.user_weight_report ?? "-"); //identify the weights
-const justification = computed(
-  () => props.node?.user_justification_report ?? "-"
-);//and the justification
-/*
-const interpretation = computed(() => {
-  return "to be inserted";
-});*/
+const node = computed(() => props.node ?? {});
+const context = computed(() => node.value?.context_report ?? {});
+const summary = computed(() => node.value?.summary_report ?? {});
+const total_score = computed(() => {
+  const v = props.node?.total_score_report;
+  return v !== undefined && v !== null ? Number(v).toFixed(2) : "-";
+});
+const weight = computed(() => node.value?.user_weight_report ?? "-");
+const justification = computed(() => node.value?.user_justification_report ?? "");
 
-//description
 const metricDescription = computed(() => 
-  props.node?.metric_description_report || 
-  "Description not available."
+  node.value?.metric_description_report || "Detailed analysis of the metric results for the specific feature identified."
 );
 
-//right extrapolated
 const rightGroup = computed(() =>
-  props.node?.metric_right_report || "Not available"
+  node.value?.metric_right_report || node.value?.group_report || "Not available"
 );
 
-//pretty and aspect stuff
 function prettifyLabel(str) {
   if (!str) return "";
-  return String(str)
-    .replace(/_/g, " ")
-    .replace(/\b\w/g, (c) => c.toUpperCase());
+  return String(str).replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 function formatValue(v) {
   if (v === null || v === undefined || v === "") return "-";
-  if (typeof v === "number") return Number.isFinite(v) ? String(v) : "-";
+  if (typeof v === "number") return Number.isFinite(v) ? v.toFixed(3) : "-";
   if (typeof v === "boolean") return v ? "True" : "False";
-  if (Array.isArray(v)) return v.join(", ");
   return String(v);
 }
 
-//title
 const title = computed(() => {
   const raw = context.value?.metric || props.metricKey || "Metric";
-  return prettifyLabel(raw)
+  return prettifyLabel(raw);
 });
 
-//Content from context and summary
 const contextRows = computed(() => {
   return Object.entries(context.value || {}).map(([key, value]) => ({
-    key,
     label: prettifyLabel(key),
-    value:
-      typeof value === "string"
-        ? prettifyLabel(value)
-        : formatValue(value),
+    value: typeof value === "string" ? prettifyLabel(value) : formatValue(value),
   }));
 });
 
-//Content from summary
 const summaryRows = computed(() => {
   return Object.entries(summary.value || {})
     .filter(([key]) => key !== "Final Score")
     .map(([key, value]) => ({
-      key,
       label: prettifyLabel(key),
       value: formatValue(value),
     }));
 });
 
-//Gauge definition
-const gaugeTicks = computed(() => {
-  const ticks = [0, 2, 4, 6, 8, 10];
-  const radius = 22;    
-  const centerX = 45;  
-  const centerY = 33;
-
-  return ticks.map((value) => {
-    const angleDeg = -180 + (value / 10) * 180;
-    const angleRad = (angleDeg * Math.PI) / 180;
-
-    const x = centerX + radius * Math.cos(angleRad);
-    const y = centerY + radius * Math.sin(angleRad);
-
-    return {
-      value,
-      style: {
-        left: `${x}mm`,
-        top: `${y}mm`,
-        transform: "translate(-50%, -50%)",
-      },
-    };
-  });
-});
-
 const totalScoreLabel = computed(() => {
-  const v = total_score.value;
-  if (v <= 2) return "Low compliance";
-  if (v <= 4) return "Low-Medium compliance";
-  if (v <= 6) return "Medium compliance";
-  if (v <= 8) return "Medium-High compliance";
-  return "High compliance";
+  const v = Number(total_score.value);
+  if (v <= 2) return "Critical Compliance";
+  if (v <= 4) return "Low-Medium Compliance";
+  if (v <= 6) return "Moderate Compliance";
+  if (v <= 8) return "Good Compliance";
+  return "Optimal Compliance";
 });
 
 const needleRotation = computed(() => {
-  const v = total_score.value;
+  const v = Math.max(0, Math.min(10, Number(total_score.value)));
   return (v / 10) * 180 - 90;
 });
 
+const gaugeTicks = computed(() => {
+  const ticks = [0, 2, 4, 6, 8, 10];
+  const radius = 22; const centerX = 45; const centerY = 33;
+  return ticks.map((value) => {
+    const angleDeg = -180 + (value / 10) * 180;
+    const angleRad = (angleDeg * Math.PI) / 180;
+    const x = centerX + radius * Math.cos(angleRad);
+    const y = centerY + radius * Math.sin(angleRad);
+    return { value, style: { left: `${x}mm`, top: `${y}mm`, transform: "translate(-50%, -50%)" } };
+  });
+});
 </script>
 
 <template>
   <div class="report-page-content">
+    <header class="page-header">
+      <div class="meta-left">
+        <span class="brand">FRIA SYSTEM</span>
+        <span class="sep">|</span>
+        <span class="dataset">{{ meta.dataset_name }}</span>
+      </div>
+      <div class="meta-right">{{ meta.evaluation_date }}</div>
+    </header>
+
     <div class="page-inner">
-      <header class="title-block">
+      <div class="title-section">
+        <div class="domain-tag">{{ prettifyLabel(rightGroup) }} Domain</div>
         <h1 class="page-title">{{ title }}</h1>
-        <div class="right-group">
-          Right group: {{ prettifyLabel(rightGroup) }}
-          </div>  
-      </header>
-
-      <section class="intro-block">
-        <p class="metric-description">
-            {{ metricDescription }}
-        </p>
-      </section>
-
-      <section class="section-block" v-if="contextRows.length">
-        <h2 class="section-title">CONTEXT REPORT:</h2>
-
-        <div class="overview-list">
-          <div
-            v-for="row in contextRows"
-            :key="`context-${row.key}`"
-            class="overview-line"
-          >
-            {{ row.label }}: {{ row.value }}
-          </div>
+        <div v-if="featureKey && featureKey !== '(global)'" class="feature-tag">
+          Sensitive Feature: <strong>{{ prettifyLabel(featureKey) }}</strong>
         </div>
-      </section>
+      </div>
 
-      <section class="section-block" v-if="summaryRows.length">
-        <h2 class="section-title">SUMMARY REPORT:</h2>
+      <div class="main-grid">
+        <div class="left-column">
+          <section class="info-section">
+            <h3 class="section-label">Metric Description</h3>
+            <p class="description-text">{{ metricDescription }}</p>
+          </section>
 
-        <div class="overview-list">
-          <div
-            v-for="row in summaryRows"
-            :key="`summary-${row.key}`"
-            class="overview-line"
-          >
-            {{ row.label }}: {{ row.value }}
-          </div>
-        </div>
-      </section>
-
-      <section
-        v-if="interpretation && String(interpretation).trim() !== '-'"
-        class="section-block"
-      >
-        <h2 class="section-title">INTERPRETATION:</h2>
-        <p class="body-text">{{ interpretation }}</p>
-      </section>
-
-      <section class="weight-block">
-        <span class="weight-label">FINAL SCORE :</span>
-        <span class="weight-badge">
-          {{ summary?.["Final Score"] ?? "-" }}
-        </span>
-      </section>
-
-      <section class="weight-block">
-        <span class="weight-label">USER-ASSIGNED WEIGHT :</span>
-        <span class="weight-badge">{{ weight }}</span>
-      </section>
-
-      <section
-        v-if="justification && String(justification).trim() !== '-'"
-        class="section-block justification-block"
-      >
-        <h2 class="section-title inline-title">JUSTIFICATION:</h2>
-        <p class="body-text inline-text">{{ justification }}</p>
-      </section>
-
-      <section class="gauge-section">
-        <h2 class="section-title">TOTAL SCORE</h2>
-
-        <div class="gauge-wrap">
-          <div class="gauge-shell">
-            <div class="gauge-arc">
-              <div class="segment seg-1"></div>
-              <div class="segment seg-2"></div>
-              <div class="segment seg-3"></div>
-              <div class="segment seg-4"></div>
-              <div class="segment seg-5"></div>
+          <section class="info-section" v-if="contextRows.length">
+            <h3 class="section-label">Context Report</h3>
+            <div class="summary-list">
+              <div v-for="row in contextRows" :key="row.label" class="summary-item">
+                <span class="s-label">{{ row.label }}</span>
+                <span class="s-value mono">{{ row.value }}</span>
+              </div>
             </div>
+          </section>
 
-            <div
-              class="needle"
-              :style="{ transform: `translateX(-50%) rotate(${needleRotation}deg)` }"
-            ></div>
-
-            <div class="needle-center"></div>
-
-            <div class="gauge-readout">
-              <div class="gauge-number">{{ total_score }}</div>
-              <div class="gauge-text">{{ totalScoreLabel }}</div>
+          <section class="info-section" v-if="summaryRows.length">
+            <h3 class="section-label">Summary Statistics</h3>
+            <div class="summary-list">
+              <div v-for="row in summaryRows" :key="row.label" class="summary-item">
+                <span class="s-label">{{ row.label }}</span>
+                <span class="s-value mono">{{ row.value }}</span>
+              </div>
             </div>
-
-            <span
-              v-for="tick in gaugeTicks"
-              :key="tick.value"
-              class="tick"
-              :style="tick.style"
-            >
-              {{ tick.value }}
-            </span>
-          </div>
+          </section>
         </div>
-      </section>
+
+        <div class="right-column">
+          <section class="gauge-box">
+            <h3 class="section-label central">Visual Assessment</h3>
+            <div class="gauge-wrap">
+              <div class="gauge-shell">
+                <div class="gauge-arc">
+                  <div class="segment seg-1"></div>
+                  <div class="segment seg-2"></div>
+                  <div class="segment seg-3"></div>
+                  <div class="segment seg-4"></div>
+                  <div class="segment seg-5"></div>
+                </div>
+                <div class="needle" :style="{ transform: `translateX(-50%) rotate(${needleRotation}deg)` }"></div>
+                <div class="needle-center"></div>
+                <div class="gauge-readout">
+                  <div class="gauge-number">{{ total_score }}</div>
+                  <div class="gauge-text">{{ totalScoreLabel }}</div>
+                </div>
+                <span v-for="tick in gaugeTicks" :key="tick.value" class="tick" :style="tick.style">{{ tick.value }}</span>
+              </div>
+            </div>
+          </section>
+
+          <section class="info-section scores-row">
+             <div class="score-pill">
+               <span class="p-label">Weight</span>
+               <span class="p-value">{{ weight }}</span>
+             </div>
+             <div class="score-pill blue">
+               <span class="p-label">Feature Score</span>
+               <span class="p-value">{{ total_score }}</span>
+             </div>
+          </section>
+
+          <section v-if="justification && justification !== '-'" class="justification-box">
+            <h3 class="section-label">Contextual Justification</h3>
+            <p class="justification-text">"{{ justification }}"</p>
+          </section>
+        </div>
+      </div>
     </div>
-    <div class="page-number">
-    {{ pageNumber }}
-  </div>
 
-    
+    <div class="page-number">{{ pageNumber }}</div>
   </div>
-
-  
 </template>
 
 <style scoped>
+@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500&display=swap');
+
 .report-page-content {
-  width: 100%;
   height: 100%;
+  padding: 20mm 20mm 15mm;
   box-sizing: border-box;
-  padding: 20mm 18mm 12mm 18mm;
   position: relative;
-  font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
-  color: #111;
+  font-family: 'Inter', sans-serif;
+  color: #1a202c;
   background: #fff;
 }
 
-.page-inner {
-  display: flex;
-  flex-direction: column;
-  max-width: 140mm;
-  margin: 0 auto;
+/* Header */
+.page-header {
+  display: flex; justify-content: space-between; align-items: center;
+  border-bottom: 1px solid #e2e8f0; padding-bottom: 8px; margin-bottom: 10mm;
+  font-size: 10px; font-weight: 600; color: #64748b; letter-spacing: 0.5px;
 }
+.sep { margin: 0 8px; color: #cbd5e1; }
+.brand { color: #1e293b; font-weight: 800; }
 
-.title-block {
-  text-align: center;
-  margin-bottom: 5mm;
-}
+/* Title Section */
+.title-section { margin-bottom: 10mm; }
+.domain-tag { font-size: 10px; font-weight: 800; text-transform: uppercase; color: #3b82f6; letter-spacing: 1px; margin-bottom: 4px; }
+.page-title { font-family: 'Instrument Serif', serif; font-size: 42px; line-height: 1.1; margin: 0; font-weight: 400; color: #1e293b; }
+.feature-tag { margin-top: 8px; font-size: 14px; color: #475569; padding: 6px 12px; background: #f8fafc; display: inline-block; border-radius: 4px; border: 1px solid #e2e8f0; }
 
-.page-title {
-  margin: 0;
-  font-size: 24pt;
-  font-weight: 800;
-  letter-spacing: 0.3px;
-  text-transform: uppercase;
-}
+/* Grid Layout */
+.main-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12mm; align-items: start; }
 
-.right-group {
-  margin-top: 3mm;
-  font-size: 12pt;
-  font-weight: 600;
-  color: #111;
-}
+.section-label { font-size: 10px; font-weight: 800; text-transform: uppercase; color: #94a3b8; letter-spacing: 1px; margin-bottom: 12px; border-bottom: 1px solid #f1f5f9; padding-bottom: 4px; }
+.section-label.central { text-align: center; }
 
-.intro-block {
-  margin-bottom: 5mm;
-}
+/* Info Sections */
+.info-section { margin-bottom: 8mm; }
+.description-text { font-size: 13px; line-height: 1.6; color: #334155; font-style: italic; }
 
-.metric-description {
-  margin: 0;
-  font-size: 16pt;
-  line-height: 1.25;
-  color: #000000;
-  font-style: italic; 
-}
+.summary-list { display: flex; flex-direction: column; gap: 8px; }
+.summary-item { display: flex; justify-content: space-between; font-size: 12px; padding-bottom: 6px; border-bottom: 1px solid #f8fafc; }
+.s-label { color: #64748b; font-weight: 500; }
+.s-value { font-weight: 700; color: #1e293b; }
+.mono { font-family: 'JetBrains Mono', monospace; }
 
-.section-block {
-  margin-bottom: 5mm;
-}
+/* Score Pills */
+.scores-row { display: flex; gap: 10px; margin-top: 10mm; }
+.score-pill { flex: 1; background: #f8fafc; padding: 12px; border-radius: 8px; border: 1px solid #e2e8f0; display: flex; flex-direction: column; align-items: center; }
+.score-pill.blue { background: #eff6ff; border-color: #dbeafe; }
+.p-label { font-size: 9px; font-weight: 800; text-transform: uppercase; color: #64748b; }
+.p-value { font-size: 20px; font-weight: 800; color: #1e293b; }
+.score-pill.blue .p-value { color: #1d4ed8; }
 
-.section-title {
-  margin: 0 0 3mm 0;
-  font-size: 14pt;
-  font-weight: 800;
-  text-transform: uppercase;
-}
+/* Justification */
+.justification-box { background: #fdfdfd; border-left: 3px solid #3b82f6; padding: 15px; margin-top: 5mm; }
+.justification-text { font-size: 12px; line-height: 1.5; color: #475569; margin: 0; }
 
-.overview-list {
-  display: flex;
-  flex-direction: column;
-  gap: 1mm;
-}
+/* Gauge Styles */
+.gauge-box { background: #fff; border: 1px solid #f1f5f9; border-radius: 12px; padding: 20px 10px; }
+.gauge-wrap { display: flex; justify-content: center; transform: scale(0.9); }
+.gauge-shell { position: relative; width: 90mm; height: 45mm; overflow: hidden; }
+.gauge-arc { position: absolute; inset: 0; overflow: hidden; }
+.gauge-arc::after { content: ""; position: absolute; left: 0; right: 0; bottom: -2mm; height: 12mm; background: #fff; z-index: 6; }
+.segment { position: absolute; left: 50%; top: 70%; width: 60mm; height: 60mm; border-radius: 50%; border: 7mm solid transparent; transform-origin: center center; }
+.seg-1 { transform: translate(-50%, -50%) rotate(-103deg); border-top-color: #ef4444; z-index: 5; }
+.seg-2 { transform: translate(-50%, -50%) rotate(-65deg); border-top-color: #f97316; z-index: 4; }
+.seg-3 { transform: translate(-50%, -50%) rotate(-22deg); border-top-color: #facc15; z-index: 3; }
+.seg-4 { transform: translate(-50%, -50%) rotate(14deg); border-top-color: #38bdf8; z-index: 2; }
+.seg-5 { transform: translate(-50%, -50%) rotate(54deg); border-top-color: #1d4ed8; z-index: 1; }
+.needle { position: absolute; left: 50%; bottom: 12.5mm; width: 1.5mm; height: 26mm; background: #1e293b; border-radius: 99px; z-index: 10; transform-origin: bottom center; }
+.needle-center { position: absolute; left: 50%; bottom: 10mm; width: 5mm; height: 5mm; background: #1e293b; border-radius: 50%; transform: translateX(-50%); z-index: 11; }
+.gauge-readout { position: absolute; left: 50%; bottom: 0mm; transform: translateX(-50%); text-align: center; z-index: 12; width: 100%; }
+.gauge-number { font-size: 16px; font-weight: 800; color: #1e293b; }
+.gauge-text { font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; margin-top: 2px; }
+.tick { position: absolute; font-size: 9px; font-weight: 800; color: #94a3b8; z-index: 7; }
 
-.overview-line {
-  font-size: 12pt;
-  line-height: 1.25;
-}
+.page-number { position: absolute; bottom: 10mm; right: 20mm; font-size: 10px; font-family: monospace; color: #94a3b8; }
 
-.body-text {
-  margin: 0;
-  font-size: 12pt;
-  line-height: 1.3;
-  max-width: 135mm;
-}
-
-.weight-block {
-  display: flex;
-  align-items: center;
-  gap: 4mm;
-  margin: 4mm 0 5mm 0;
-}
-
-.weight-label {
-  font-size: 14pt;
-  font-weight: 800;
-  text-transform: uppercase;
-}
-
-.weight-badge {
-  width: 10mm;
-  height: 10mm;
-  border-radius: 50%;
-  background: #5e95c6;
-  color: white;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 10pt;
-  font-weight: 700;
-}
-
-.justification-block {
-  margin-top: 2mm;
-}
-
-.inline-title {
-  display: inline;
-  margin-right: 2mm;
-}
-
-.inline-text {
-  display: inline;
-}
-
-.page-number {
-  position: absolute;
-  bottom: 5mm;
-  left: 0;
-  right: 5mm;
-  text-align: right;
-  z-index: 1;
-}
-
-
-.section-block,
-.intro-block,
-.overview-list,
-.overview-line,
-.body-text,
-.metric-description {
-  text-align: left;
-}
-
-/* Gauge */
-.gauge-section {
-  margin: 2mm 0 2mm 0;
-}
-
-.gauge-wrap {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  margin-top: 0; 
-}
-
-.gauge-shell {
-  position: relative;
-  width: 90mm;
-  height: 45mm;
-  overflow: hidden;
-}
-
-.gauge-arc {
-  position: absolute;
-  inset: 0;
-  overflow: hidden;
-  clip-path: inset(0 0 0 0); /* keep whole shell */
-}
-
-.gauge-arc::after {
-  content: "";
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: -2mm;
-  height: 12mm;
-  background: #fff;
-  z-index: 6;
-}
-
-.segment {
-  position: absolute;
-  left: 50%;
-  top: 70%;
-  width: 60mm;
-  height: 60mm;
-  border-radius: 50%;
-  border: 7mm solid transparent;
-  transform-origin: center center;
-  box-sizing: border-box;
-}
-
-.seg-1 { 
-  transform: translate(-50%, -50%) rotate(-103deg);
-  border-top-color: #e04b45;
-  z-index: 5;
-}
-
-.seg-2 { 
-  transform: translate(-50%, -50%) rotate(-65deg);
-  border-top-color: #f1b172;
-  z-index: 4;
-}
-
-.seg-3 { 
-  transform: translate(-50%, -50%) rotate(-22deg);
-  border-top-color: #f3f0b4;
-  z-index: 3;
-}
-
-.seg-4 { 
-  transform: translate(-50%, -50%) rotate(14deg);
-  border-top-color: #bfe3f2;
-  z-index: 2;
-}
-
-.seg-5 { 
-  transform: translate(-50%, -50%) rotate(54deg);
-  border-top-color: #4f7fb3;
-  z-index: 1;
-}
-.needle {
-  position: absolute;
-  left: 50%;
-  bottom: 12.5mm; /* 10mm + half of 5mm center dot */
-  width: 2mm;
-  height: 27mm;
-  background: #222;
-  border-radius: 999px;
-  z-index: 5;
-
-  transform-origin: bottom center;
-}
-
-.needle-center {
-  position: absolute;
-  left: 50%;
-  bottom: 10mm;
-  width: 5mm;
-  height: 5mm;
-  background: #222;
-  border-radius: 50%;
-  transform: translateX(-50%);
-  z-index: 6;
-}
-.gauge-readout {
-  position: absolute;
-  left: 50%;
-  bottom: 0mm;
-  transform: translateX(-50%);
-  text-align: center;
-  z-index: 4;
-}
-
-.gauge-number {
-  font-size: 10pt;
-  font-weight: 800;
-  line-height: 1;
-  color: #111;
-}
-
-.gauge-text {
-  margin-top: 0.8mm;
-  font-size: 10pt;
-  font-weight: 700;
-  color: #111;
-}
-
-.tick {
-  position: absolute;
-  font-size: 10pt;
-  font-weight: 700;
-  color: #333;
-  z-index: 7;
-  line-height: 1;
-}
-
+@media print { .report-page-content { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
 </style>

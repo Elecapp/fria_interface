@@ -25,6 +25,8 @@ router = APIRouter(tags=["results"])
 @router.get("/results/plugins")
 def get_plugins():
     path = latest_config_path()
+    if not path:
+        return {"config_file": None, "plugins": []}
     cfg = json.loads(path.read_text(encoding="utf-8"))
     return {
         "config_file": path.name,
@@ -298,7 +300,7 @@ def save_weights(payload: WeightsSavePayload):
 
             metric_value = ((payload.summary_report or {}).get(feature, {}).get("Final Score")
                             or (payload.context_report or {}).get(feature, {}).get("Final Score")
-                            or ((payload.context_report or {}).get(feature, {}).get("value")*10)
+                            or ((payload.context_report or {}).get(feature, {}).get("value", 0)*10)
             )
 
             final_score = compute_total_score(metric_value, w)

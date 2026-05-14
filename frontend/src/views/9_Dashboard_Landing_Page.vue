@@ -142,8 +142,22 @@ async function fetchData() {
 
 function isMetricReviewed(metricKey) {
     const report = getReportRoot();
-  // Se la metrica esiste nel report ed è stata salvata (anche con peso 5), la consideriamo "Reviewed"
-   return !!report[metricKey];
+    const m = report[metricKey];
+    if (!m || typeof m !== "object") return false;
+
+    // Se è stato salvato un peso a livello della singola metrica
+    if (m.user_weight_report !== undefined) return true;
+    // Se è stato salvato un peso nel sottomodulo globale
+    if (m["(global)"] && m["(global)"].user_weight_report !== undefined) return true;
+
+    // Se è stato salvato un peso per almeno una delle feature sensibili
+    for (const key in m) {
+      if (m[key] && typeof m[key] === "object" && m[key].user_weight_report !== undefined) {
+        return true;
+      }
+    }
+    
+    return false;
 }
 
 
