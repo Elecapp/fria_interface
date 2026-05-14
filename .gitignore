@@ -22,3 +22,10 @@ node_modules/
 # Risultati e test locali
 backend/storage/configs/
 backend/storage/runs/
+
+# Output generati dall'evaluator (Risultati e Report)
+backend/storage/reports/*
+!backend/storage/reports/.gitkeep
+
+backend/storage/results/*
+!backend/storage/results/.gitkeep
