@@ -1,1 +1,450 @@
-{}
+{
+  "conditional_statistical_parity": {
+    "eta_intervallo": {
+      "metric": "Conditional Statistical Parity",
+      "status": "success",
+      "conditional_variable": "gender",
+      "sensitive_feature": "eta_intervallo",
+      "conditions": {
+        "F": {
+          "18-30": 0.0,
+          "31-45": 0.0,
+          "46-60": 0.0,
+          "61+": 0.0,
+          "raw_difference": 0.0,
+          "normalized_score": 1.0,
+          "weight": 0.46,
+          "total_samples": 46
+        },
+        "M": {
+          "18-30": 0.0,
+          "31-45": 0.0,
+          "46-60": 0.0,
+          "61+": 0.0,
+          "raw_difference": 0.0,
+          "normalized_score": 1.0,
+          "weight": 0.54,
+          "total_samples": 54
+        }
+      },
+      "disparity_summary": {
+        "raw_average": 0.0,
+        "raw_max": 0.0,
+        "raw_min": 0.0,
+        "normalized_average": 1.0,
+        "normalized_max": 1.0,
+        "normalized_min": 1.0,
+        "processed_conditions": 2,
+        "total_samples": 100,
+        "final_score": 10.0
+      }
+    }
+  },
+  "k_anonymity": {
+    "metric": "K-Anonymity",
+    "status": "success",
+    "k_value": 4,
+    "total_groups": 78,
+    "min_group_size": 1,
+    "max_group_size": 3,
+    "avg_group_size": 1.28,
+    "compliance": false,
+    "compliance_percentage": 0.0,
+    "quasi_identifiers": [
+      "valore_immobile_eur"
+    ],
+    "final_score": 3.21,
+    "full_results": [
+      {
+        "valore_immobile_eur": 80000,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "valore_immobile_eur": 94000,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "valore_immobile_eur": 117000,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "valore_immobile_eur": 121000,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "valore_immobile_eur": 128000,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "valore_immobile_eur": 131000,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "valore_immobile_eur": 133000,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "valore_immobile_eur": 135000,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "valore_immobile_eur": 142000,
+        "count": 2,
+        "compliant": false
+      },
+      {
+        "valore_immobile_eur": 144000,
+        "count": 2,
+        "compliant": false
+      },
+      {
+        "valore_immobile_eur": 145000,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "valore_immobile_eur": 148000,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "valore_immobile_eur": 149000,
+        "count": 2,
+        "compliant": false
+      },
+      {
+        "valore_immobile_eur": 153000,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "valore_immobile_eur": 164000,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "valore_immobile_eur": 167000,
+        "count": 2,
+        "compliant": false
+      },
+      {
+        "valore_immobile_eur": 170000,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "valore_immobile_eur": 171000,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "valore_immobile_eur": 172000,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "valore_immobile_eur": 173000,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "valore_immobile_eur": 176000,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "valore_immobile_eur": 177000,
+        "count": 2,
+        "compliant": false
+      },
+      {
+        "valore_immobile_eur": 182000,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "valore_immobile_eur": 184000,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "valore_immobile_eur": 186000,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "valore_immobile_eur": 187000,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "valore_immobile_eur": 188000,
+        "count": 2,
+        "compliant": false
+      },
+      {
+        "valore_immobile_eur": 190000,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "valore_immobile_eur": 194000,
+        "count": 3,
+        "compliant": false
+      },
+      {
+        "valore_immobile_eur": 197000,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "valore_immobile_eur": 198000,
+        "count": 2,
+        "compliant": false
+      },
+      {
+        "valore_immobile_eur": 200000,
+        "count": 2,
+        "compliant": false
+      },
+      {
+        "valore_immobile_eur": 203000,
+        "count": 2,
+        "compliant": false
+      },
+      {
+        "valore_immobile_eur": 204000,
+        "count": 2,
+        "compliant": false
+      },
+      {
+        "valore_immobile_eur": 205000,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "valore_immobile_eur": 206000,
+        "count": 3,
+        "compliant": false
+      },
+      {
+        "valore_immobile_eur": 207000,
+        "count": 2,
+        "compliant": false
+      },
+      {
+        "valore_immobile_eur": 208000,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "valore_immobile_eur": 210000,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "valore_immobile_eur": 213000,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "valore_immobile_eur": 214000,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "valore_immobile_eur": 216000,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "valore_immobile_eur": 222000,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "valore_immobile_eur": 223000,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "valore_immobile_eur": 232000,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "valore_immobile_eur": 233000,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "valore_immobile_eur": 240000,
+        "count": 2,
+        "compliant": false
+      },
+      {
+        "valore_immobile_eur": 242000,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "valore_immobile_eur": 243000,
+        "count": 2,
+        "compliant": false
+      },
+      {
+        "valore_immobile_eur": 247000,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "valore_immobile_eur": 250000,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "valore_immobile_eur": 254000,
+        "count": 2,
+        "compliant": false
+      },
+      {
+        "valore_immobile_eur": 256000,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "valore_immobile_eur": 258000,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "valore_immobile_eur": 261000,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "valore_immobile_eur": 264000,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "valore_immobile_eur": 267000,
+        "count": 2,
+        "compliant": false
+      },
+      {
+        "valore_immobile_eur": 274000,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "valore_immobile_eur": 280000,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "valore_immobile_eur": 283000,
+        "count": 2,
+        "compliant": false
+      },
+      {
+        "valore_immobile_eur": 284000,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "valore_immobile_eur": 286000,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "valore_immobile_eur": 288000,
+        "count": 2,
+        "compliant": false
+      },
+      {
+        "valore_immobile_eur": 301000,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "valore_immobile_eur": 307000,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "valore_immobile_eur": 309000,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "valore_immobile_eur": 311000,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "valore_immobile_eur": 313000,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "valore_immobile_eur": 314000,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "valore_immobile_eur": 322000,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "valore_immobile_eur": 329000,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "valore_immobile_eur": 338000,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "valore_immobile_eur": 340000,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "valore_immobile_eur": 341000,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "valore_immobile_eur": 342000,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "valore_immobile_eur": 358000,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "valore_immobile_eur": 361000,
+        "count": 2,
+        "compliant": false
+      },
+      {
+        "valore_immobile_eur": 374000,
+        "count": 1,
+        "compliant": false
+      }
+    ]
+  }
+}

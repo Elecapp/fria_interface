@@ -8,6 +8,7 @@ from pathlib import Path
 import json
 import uuid
 import csv
+import pandas as pd
 
 import shutil
 from pydantic import BaseModel
@@ -79,9 +80,35 @@ def latest_status():
 #GET: headers for sensitive features
 @router.get("/headers")
 def latest_columns():
-    result = get_file_columns()
-
-    return {"columns": result["columns"]}
+    # 1. Prova a usare il metodo originale del tesista
+    try:
+        result = get_file_columns()
+        if "columns" in result and result["columns"]:
+            return {"columns": result["columns"]}
+    except Exception as e:
+        print(f"Metodo originale fallito: {e}")
+        pass # Se fallisce, usiamo il nostro fallback
+        
+    # 2. FALLBACK: Cerca l'ultimo file X_test caricato
+    cfg = get_config_id()
+    files = sorted(
+        UPLOAD_DIR.glob(f"X_test__{cfg}__*"),
+        key=lambda p: p.stat().st_mtime,
+        reverse=True
+    )
+    
+    if not files:
+        raise HTTPException(status_code=404, detail="Nessun dataset trovato per la configurazione attuale")
+        
+    latest_file = files[0]
+    
+    # 3. Leggi le colonne usando pandas (metodo infallibile)
+    try:
+        df = pd.read_csv(latest_file, nrows=0) # Legge solo le intestazioni per velocità
+        columns = df.columns.tolist()
+        return {"columns": columns}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Errore nella lettura del CSV: {e}")
 
 class ExperimentDataset(BaseModel):
     filename: str
@@ -90,31 +117,63 @@ class ExperimentDataset(BaseModel):
 def upload_experiment_dataset(payload: ExperimentDataset):
     cfg_id = get_config_id()
     filename = payload.filename
+    
+    # Cerca il file nella cartella 'data'
+    source_path = BASE_DIR.parent / "data" / filename 
 
-    source_path = BASE_DIR / filename
     if not source_path.exists():
-        raise HTTPException(status_code=404, detail=f"Dataset {filename} non trovato sul server. Controlla il percorso.")
+        raise HTTPException(status_code=404, detail=f"File {filename} non trovato in {source_path}")
+
+    # Invece di simulare solo X_test, simuliamo l'upload di tutti e 3 i requisiti base
+    dataset_types_to_mock = ["X_test", "y_true", "y_pred"]
     
-    dataset_type ="X_test"
-
-    delete_existing_uploads(dataset_type)
-
-    dest_path = UPLOAD_DIR / f"{dataset_type}__{cfg_id}__{filename}"
-
-    shutil.copy2(source_path, dest_path)
-
+    for dtype in dataset_types_to_mock:
+        # 1. Pulisce eventuali vecchi file di questo tipo
+        for old_file in UPLOAD_DIR.glob(f"{dtype}__*"):
+            try:
+                old_file.unlink()
+            except Exception as e:
+                pass
+        
+        # 2. Crea il nuovo percorso simulando che l'utente abbia caricato y_true e y_pred
+        dest_path = UPLOAD_DIR / f"{dtype}__{cfg_id}__{filename}"
+        
+        # 3. Copia il file
+        shutil.copy2(source_path, dest_path)
+    
     return {
-        "message": "Dataset sperimentale caricato con successo!",
-        "filename": filename,
-        "dataset_type": dataset_type,
-        "path": str(dest_path.resolve())
+        "status": "ok", 
+        "config_id": cfg_id,
+        "message": "Dataset X_test, y_true e y_pred caricati silenziosamente."
     }
-    
 
+class SlicePayload(BaseModel):
+    target_column: str
+    prediction_column: str
 
+@router.post("/slice-target-files")
+def slice_target_files(payload: SlicePayload):
+    cfg_id = get_config_id()
 
+    # 1. Trova e taglia il file y_true
+    y_true_files = list(UPLOAD_DIR.glob(f"y_true__{cfg_id}__*"))
+    if y_true_files:
+        file_path = y_true_files[0]
+        df = pd.read_csv(file_path)
+        if payload.target_column in df.columns:
+            # Salva sovrascrivendo il file, ma tenendo SOLO quella colonna
+            df[[payload.target_column]].to_csv(file_path, index=False)
 
+    # 2. Trova e taglia il file y_pred
+    y_pred_files = list(UPLOAD_DIR.glob(f"y_pred__{cfg_id}__*"))
+    if y_pred_files:
+        file_path = y_pred_files[0]
+        df = pd.read_csv(file_path)
+        if payload.prediction_column in df.columns:
+            # Salva sovrascrivendo il file, ma tenendo SOLO quella colonna
+            df[[payload.prediction_column]].to_csv(file_path, index=False)
 
+    return {"message": "File tagliati con successo a 1 colonna!"}
 
 
 

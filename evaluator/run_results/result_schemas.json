@@ -1,1 +1,10 @@
-{}
+{
+  "conditional_statistical_parity": {
+    "schema": "conditional_nested",
+    "ui": "condition_selector_then_group_chart"
+  },
+  "k_anonymity": {
+    "schema": "record_with_table",
+    "ui": "summary_plus_table"
+  }
+}

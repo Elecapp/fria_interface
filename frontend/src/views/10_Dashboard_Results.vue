@@ -2,9 +2,6 @@
 import { computed, onMounted, ref, shallowRef} from "vue";
 import { useRoute, useRouter} from "vue-router";
 
-//5 different metric results renderer
-//import ConditionalNestedView from "../components/metrics/ConditionalNestedView.vue";
-//import GroupMetricMapView from "../components/metrics/GroupMetricMapView.vue";
 import ConditionalNestedView2 from "../components/metrics/ConditionalNestedView2.vue";
 import ScalarMapView from "../components/metrics/ScalarMapView.vue";
 import GroupMetricMapView2 from "../components/metrics/GroupMetricMapView2.vue";
@@ -14,31 +11,24 @@ import CardMap from "../components/metrics/CardMap.vue";
 const route = useRoute();
 const router = useRouter();
 
-const group = computed(() => String(route.params.group || "")); //right
-const metricKey = computed(() => String(route.params.metric || "")); //metric
-
-const prettyMetric = computed(() =>
-  metricKey.value.replaceAll("_", " ").replace(/\b\w/g, (c) => c.toUpperCase())
-);
+const group = computed(() => String(route.params.group || "")); 
+const metricKey = computed(() => String(route.params.metric || "")); 
 
 const loading = ref(false);
 const error = ref("");
 
 const runId = ref("");   
-const allResults = ref({}); //results for all metrics
-const allSchemas = ref({}); //schemas for all metrics
+const allResults = ref({}); 
+const allSchemas = ref({}); 
 
-//for the emit from the child schema
 const metricViewRef = shallowRef(null);
 
 async function handleBack() {
   const view = metricViewRef.value;
-
   if (view && typeof view.goBackSafely === "function") {
     await view.goBackSafely();
     return;
   }
-
   router.back();
 }
 
@@ -46,43 +36,20 @@ function handleChildSafeBack() {
   router.back();
 }
 
-//Helper
-function prettifyLabel(str) {
-  if (!str || typeof str !== "string") return "";
-  return str
-    .replace(/_/g, " ")
-    .toLowerCase()
-    .replace(/\b\w/g, (c) => c.toUpperCase());
-}
-
-//gets data from the selected metric (metricKey selected)
 const metricObj = computed(() => allResults.value?.[metricKey.value] ?? null);
+const metricSchemaFromBackend = computed(() => allSchemas.value?.[metricKey.value]?.schema ?? "unknown");
 
-//get schema type from backend -> ex. k_anonymity: { schema: "scalar_map" },
-const metricSchemaFromBackend = computed(
-  () => allSchemas.value?.[metricKey.value]?.schema ?? "unknown"
-);
-
-//apply renderer depending on identified schema per metric
 const renderer = computed(() => {
   switch (metricSchemaFromBackend.value) {
-
-    case "card_map":
-      return CardMap;
-    case "scalar_map":
-      return ScalarMapView;
-    case "conditional_nested":
-      return ConditionalNestedView2;
-    case "group_metric_map":
-      return GroupMetricMapView2; 
-    case "record_with_table":
-      return RecordWithTableView;
-    default:
-      return null;
+    case "card_map": return CardMap;
+    case "scalar_map": return ScalarMapView;
+    case "conditional_nested": return ConditionalNestedView2;
+    case "group_metric_map": return GroupMetricMapView2; 
+    case "record_with_table": return RecordWithTableView;
+    default: return null;
   }
 });
 
-//FIRST: retrieve results to display
 onMounted(async () => {
   try {
     loading.value = true;
@@ -93,8 +60,6 @@ onMounted(async () => {
     const data = await res.json();
 
     runId.value = String(data?.run_id || "");  
-
-    //catching results
     allResults.value = data?.results ?? {};
 
     if (data?.schemas) {
@@ -104,12 +69,9 @@ onMounted(async () => {
       if (sres.ok) {
         allSchemas.value = await sres.json();
       } else {
-        console.warn("No schema found for current results.");
         allSchemas.value = {};
       }
     }
-
-    console.log((!allResults.value?.[metricKey.value]))
 
     if (!allResults.value?.[metricKey.value]) {
       error.value = `Metric "${metricKey.value}" not found in results.`;
@@ -123,70 +85,67 @@ onMounted(async () => {
 </script>
 
 <template>
-  <div class="page">
-    <aside class="sidebar">
-      <div class="side-title">Metrics<br />Overview</div>
-      <button class="back" @click="handleBack">‹ Back</button>
-    </aside>
+  <div class="wrapper">
+    <div v-if="loading" class="fullscreen-msg">
+      <div class="spinner"></div>
+      <p>Loading metric data...</p>
+    </div>
+    
+    <div v-else-if="error" class="fullscreen-msg error-msg">
+      <p>{{ error }}</p>
+      <button class="btn-ghost" @click="handleBack">← Go Back</button>
+    </div>
 
-    <main class="content">
-      <h1 class="title">{{ prettyMetric }}</h1>
-      <p class="subtitle">Group: <strong>{{ prettifyLabel(group) }}</strong></p>
+    <component
+      v-else-if="renderer && metricObj"
+      :is="renderer"
+      :metric-key="metricKey"
+      ref="metricViewRef"
+      :metric-obj="metricObj"
+      :schema-type="metricSchemaFromBackend"
+      :run-id="runId"                 
+      @go-back-safe="handleChildSafeBack"
+    />
 
-      <div v-if="loading" class="card">Loading results…</div>
-      <div v-else-if="error" class="card">{{ error }}</div>
-
-      <component
-        v-else-if="renderer && metricObj"
-        :is="renderer"
-        :metric-key="metricKey"
-        ref="metricViewRef"
-        :metric-obj="metricObj"
-        :schema-type="metricSchemaFromBackend"
-        :run-id="runId"                 
-        :initial-weights="initialWeights"
-        @go-back-safe="handleChildSafeBack"
-      />
-
-      <div v-else class="card">
+    <div v-else class="fullscreen-msg">
+      <button class="btn-ghost" @click="handleBack" style="margin-bottom: 2rem;">← Back to Dashboard</button>
+      <div class="card">
         <h3>Raw output</h3>
-        <p style="opacity:0.7; font-size: 13px">
-          (No renderer for schema: <strong>{{ metricSchemaFromBackend }}</strong>)
-        </p>
+        <p class="muted">(No renderer for schema: <strong>{{ metricSchemaFromBackend }}</strong>)</p>
         <pre class="pre">{{ JSON.stringify(metricObj, null, 2) }}</pre>
       </div>
-    </main>
+    </div>
   </div>
 </template>
 
 <style scoped>
-/* keep your layout styles */
-.page { min-height: 100vh; display: flex; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif; }
-.sidebar { width: 320px; background: #b8ff8f; padding: 28px 22px; box-sizing: border-box; }
-.side-title { font-size: 34px; font-weight: 900; text-align: center; margin-bottom: 30px; }
-.back { border: none; background: transparent; font-size: 18px; cursor: pointer; }
-.content { flex: 1; padding: 36px 56px; }
-.title { font-size: 44px; margin: 0 0 8px; }
-.subtitle { margin: 0 0 18px; font-size: 18px; }
-.card {
-  border: 1px solid #e6e6e6;
-  border-radius: 16px;
-  padding: 28px 34px;
-  max-width: 900px;
-  width: 100%;
-  background: #fafafa;
-  text-align: center;
-  margin-top: 14px;
+.wrapper {
+  min-height: 100vh;
+  background-color: #faf9f8;
+  font-family: 'Inter', sans-serif;
 }
-.pre {
-  background: #fff;
-  border: 1px solid #eee;
-  border-radius: 12px;
-  padding: 16px;
-  overflow: auto;
-  max-height: 360px;
-  font-size: 12px;
-  text-align: left;
-  white-space: pre-wrap;
+
+.fullscreen-msg {
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #666;
 }
+
+.error-msg { color: #e11d48; }
+
+.spinner {
+  width: 40px; height: 40px; margin-bottom: 1rem;
+  border: 3px solid #e5e5e5; border-top: 3px solid #1243e3; border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin { 100% { transform: rotate(360deg); } }
+
+.card { background: #fff; border: 1px solid #e5e5e5; border-radius: 12px; padding: 2rem; max-width: 800px; width: 90%; text-align: left; }
+.pre { background: #f8fafc; padding: 1rem; border-radius: 8px; font-size: 0.85rem; overflow-x: auto; font-family: 'JetBrains Mono', monospace; }
+.muted { color: #888; font-size: 0.9rem; }
+.btn-ghost { background: transparent; border: none; font-weight: 600; cursor: pointer; color: #111; font-family: 'Inter', sans-serif; }
 </style>

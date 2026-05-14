@@ -1,1023 +1,424 @@
 <script setup>
-import { computed, ref, onMounted } from "vue";
+import { computed, onMounted, ref } from "vue";
+import { useRoute } from "vue-router";
+import {
+  DEFAULT_WEIGHT,
+  DEFAULT_WEIGHT_JUSTIFICATION,
+  buildConditionalNestedFeatureSavePayload,
+  buildContextSummaryRows as sharedBuildContextSummaryRows,
+  buildSummaryRows as sharedBuildSummaryRows,
+  getFeatureObject as sharedGetFeatureObject,
+  getSummaryKeyForFeature as sharedGetSummaryKeyForFeature,
+  isPlainObject,
+} from "../../utils/report_builder_helper";
 
+const route = useRoute();
+const group = computed(() => String(route.params.group || ""));
+const metricKey = computed(() => String(route.params.metric || ""));
+
+const loading = ref(false);
+const error = ref("");
+const metricObj = ref(null);
+const items = ref([]); 
+
+const props = defineProps({ runId: { type: String, required: true } });
 const emit = defineEmits(["go-back-safe"]);
 
-const props = defineProps({
-  runId: { type: [String, Number], required: true },
-  metricKey: { type: String, required: true },
-  metricObj: { type: Object, required: true },
-});
-
-//Default values by feature: weight = 5, justification length, justification 
-const DEFAULT_WEIGHT = 5;
+const activeFeatureTab = ref("");
 const MIN_JUST_LENGTH = 10;
-const DEFAULT_WEIGHT_JUSTIFICATION =
-  "Since no weight has been assigned, the default weight 5 has been used";
-
-//page state
+const featureWeights = ref({});
+const featureJustifications = ref({});
+const savedFeatures = ref({});
 const saving = ref(false);
 const saveError = ref("");
 const saveOk = ref(false);
 
-//jump from feature to another
-const selectedFeatureForJump = ref("");
-
-function scrollToFeature() {
-  if (!selectedFeatureForJump.value) return;
-
-  const el = document.getElementById(`feature-${selectedFeatureForJump.value}`);
-  if (el) {
-    el.scrollIntoView({ behavior: "smooth", block: "start" });
-  }
-}
-
-//Helpers
-function prettifyLabel(str) {
-  if (!str) return "";
-  return String(str)
-    .replace(/_/g, " ")
-    .toLowerCase()
-    .replace(/\b\w/g, (c) => c.toUpperCase());
-}
-
-function isScalar(v) {
-  return (
-    v === null ||
-    v === undefined ||
-    ["string", "number", "boolean"].includes(typeof v)
-  );
-}
-
-function isPlainObject(v) {
-  return v && typeof v === "object" && !Array.isArray(v);
-}
-
-function looksLikeGroupMap(v) {
-  if (!isPlainObject(v)) return false;
-  const entries = Object.entries(v);
-  if (!entries.length) return false;
-  return entries.every(([k, val]) => typeof k === "string" && isScalar(val));
-}
-
-function formatAny(v) {
-  if (v === null || v === undefined) return "—";
-  if (typeof v === "boolean") return v ? "True" : "False";
-  if (typeof v === "number") return Number.isFinite(v) ? v.toFixed(3) : "—";
-  if (Array.isArray(v)) return v.join(", ");
-  return String(v);
-}
-
-function formatGroupLabel(v) {
-  const num = Number(v);
-  if (!Number.isNaN(num) && String(v).trim() !== "") {
-    if (Number.isInteger(num)) return String(num);
-    return num.toFixed(3);
-  }
-  return prettifyLabel(String(v));
-}
-
-//Features identified 
-const featureKeys = computed(() =>
-  props.metricObj && typeof props.metricObj === "object"
-    ? Object.keys(props.metricObj)
-    : []
-);
-
-////Initialized state for each feature: 
-// - weight = 5, 
-// - justification = Since no weight has been assigned, the default weight 5 has been used
-// - saving = false
-const featureWeights = ref({});
-const featureJustifications = ref({});
-const savedFeatures = ref({});
-
 function ensureFeatureState(feature) {
-  if (!(feature in featureWeights.value)) {
-    featureWeights.value = {
-      ...featureWeights.value,
-      [feature]: DEFAULT_WEIGHT,
-    };
-  }
-
-  if (!(feature in featureJustifications.value)) {
-    featureJustifications.value = {
-      ...featureJustifications.value,
-      [feature]: "",
-    };
-  }
-
-  if (!(feature in savedFeatures.value)) {
-    savedFeatures.value = {
-      ...savedFeatures.value,
-      [feature]: false,
-    };
-  }
+  if (!(feature in featureWeights.value)) featureWeights.value[feature] = DEFAULT_WEIGHT;
+  if (!(feature in featureJustifications.value)) featureJustifications.value[feature] = "";
+  if (!(feature in savedFeatures.value)) savedFeatures.value[feature] = false;
 }
 
-function isFeatureSaved(feature) {
-  ensureFeatureState(feature);
-  return !!savedFeatures.value[feature];
-}
+function isFeatureSaved(feature) { ensureFeatureState(feature); return !!savedFeatures.value[feature]; }
+function getFeatureWeight(feature) { ensureFeatureState(feature); return Number.isFinite(Number(featureWeights.value[feature])) ? Number(featureWeights.value[feature]) : DEFAULT_WEIGHT; }
+function setFeatureWeight(feature, val) { ensureFeatureState(feature); featureWeights.value[feature] = Number(val); savedFeatures.value[feature] = false; saveOk.value = false; saveError.value = ""; }
+function getFeatureJustification(feature) { ensureFeatureState(feature); return String(featureJustifications.value[feature] || ""); }
+function setFeatureJustification(feature, val) { ensureFeatureState(feature); featureJustifications.value[feature] = String(val); savedFeatures.value[feature] = false; saveOk.value = false; saveError.value = ""; }
+function featureNeedsJustification(feature) { ensureFeatureState(feature); return Number(getFeatureWeight(feature)) !== DEFAULT_WEIGHT; }
+function isFeatureValid(feature) { ensureFeatureState(feature); if (!featureNeedsJustification(feature)) return true; return String(getFeatureJustification(feature)).trim().length >= MIN_JUST_LENGTH; }
 
-//Getter and Setter: initialize, reads, fallback
-function getFeatureWeight(feature) {
-  ensureFeatureState(feature);
-  const v = featureWeights.value[feature];
-  return Number.isFinite(Number(v)) ? Number(v) : DEFAULT_WEIGHT;
-}
-
-function setFeatureWeight(feature, val) {
-  ensureFeatureState(feature);
-
-  featureWeights.value = {
-    ...featureWeights.value,
-    [feature]: Number(val),
-  };
-
-  savedFeatures.value = {
-    ...savedFeatures.value,
-    [feature]: false,
-  };
-
-  saveOk.value = false;
-  saveError.value = "";
-}
-
-function getFeatureJustification(feature) {
-  ensureFeatureState(feature);
-  return String(featureJustifications.value[feature] || "");
-}
-
-function setFeatureJustification(feature, val) {
-  ensureFeatureState(feature);
-
-  featureJustifications.value = {
-    ...featureJustifications.value,
-    [feature]: String(val),
-  };
-
-  savedFeatures.value = {
-    ...savedFeatures.value,
-    [feature]: false,
-  };
-
-  saveOk.value = false;
-  saveError.value = "";
-}
-
-//weight = 5 no justification
-function featureNeedsJustification(feature) {
-  ensureFeatureState(feature);
-  return Number(getFeatureWeight(feature)) !== DEFAULT_WEIGHT;
-}
-
-//w !=5 -> justification 
-function isFeatureValid(feature) {
-  ensureFeatureState(feature);
-
-  if (!featureNeedsJustification(feature)) return true;
-
-  return (
-    String(getFeatureJustification(feature)).trim().length >= MIN_JUST_LENGTH
-  );
-}
-
-/** ---------- schema ---------- */
-const resultSchemas = ref({});
-
-const schemaTypeReport = computed(() => {
-  return resultSchemas.value?.[props.metricKey]?.schema ?? null;
-});
-
-//Loads schema type to determine how then to display data 
-async function loadResultSchemas() {
-  try {
-    const resp = await fetch(
-      `http://127.0.0.1:8000/results/result_schemas?run_id=${encodeURIComponent(
-        props.runId
-      )}`
-    );
-    if (!resp.ok) throw new Error("Failed to load result schemas");
-    resultSchemas.value = await resp.json();
-  } catch (e) {
-    console.error("Could not load result schemas:", e);
-    resultSchemas.value = {};
-  }
-}
-
-onMounted(loadResultSchemas);
-
-//feature helpers
-function getFeatureObject(featureKey) {
-  if (!props.metricObj || !featureKey) return null;
-  const obj = props.metricObj[featureKey];
-  return isPlainObject(obj) ? obj : null;
-}
-
-//builds content for the summary card
-function buildSummaryRows(featureKey) {
-  const o = getFeatureObject(featureKey);
-  if (!isPlainObject(o)) return [];
-
-  const localGroupMapKey =
-    Object.keys(o).find((k) => looksLikeGroupMap(o[k])) ?? null;
-
-  const exclude = new Set(localGroupMapKey ? [localGroupMapKey] : []);
-  const out = [];
-
-  for (const [k, v] of Object.entries(o)) {
-    if (exclude.has(k)) continue;
-
-    const scalar = isScalar(v);
-    const smallArray =
-      Array.isArray(v) &&
-      v.length <= 30 &&
-      v.every((x) => ["string", "number", "boolean"].includes(typeof x));
-
-    if (scalar || smallArray) {
-      out.push({
-        key: prettifyLabel(k),
-        value:
-          typeof v === "string"
-            ? prettifyLabel(v)
-            : formatAny(v),
-      });
-    }
-  }
-
-  out.sort((a, b) => a.key.localeCompare(b.key));
-  return out;
-}
-
-function getSummaryRows(feature) {
-  return buildSummaryRows(feature);
-}
-
-//get content for the table
-/*{
-  "distribution_by_group": {
-    "male": 0.52,
-    "female": 0.48
-  },
-}
-*/
-function getGroupMapKey(feature) {
-  const o = getFeatureObject(feature);
-  if (!isPlainObject(o)) return null;
-
-  return (
-    Object.keys(o).find((k) => looksLikeGroupMap(o[k])) ?? null
-  );
-}
-
-//What to show in the table -> "male" : 0.52
-function getGroupMapObj(feature) {
-  const o = getFeatureObject(feature);
-  const key = getGroupMapKey(feature);
-  return key ? o?.[key] ?? null : null;
-}
-
-//Table title
-function getGroupMapTitle(feature) {
-  const key = getGroupMapKey(feature);
-  return key ? `${prettifyLabel(key)} Table` : "Table";
-}
-
-//First Column Title
-function getFirstColTitle(feature) {
-  const key = getGroupMapKey(feature);
-  return key ? prettifyLabel(key) : "Group";
-}
-
-//Second Column Title
-function getValueColTitle() {
-  return "Values";
-}
-
-function getTableGrid2() {
-  return `minmax(220px, 1.2fr) minmax(140px, 1fr)`;
-}
-
-//Helper to render rows in the table
-function getRows(feature) {
-  const obj = getGroupMapObj(feature);
-  if (!isPlainObject(obj)) return [];
-
-  return Object.entries(obj).map(([group, value]) => {
-    const vNum = Number(value);
-    return {
-      group,
-      value: Number.isFinite(vNum) ? vNum : null,
-    };
-  });
-}
-
-//converts back summary table into dict for report saving
-function rowsToDict(rows) {
-  const out = {};
-  for (const r of rows || []) {
-    if (!r?.key) continue;
-    out[String(r.key)] = r.value;
-  }
-  return out;
-}
-
-//saving for the report generation if weight is saved
 async function saveFeature(feature) {
   ensureFeatureState(feature);
-
   if (saving.value) return;
-
   const weight = Number(getFeatureWeight(feature));
-  const justification =
-    weight === DEFAULT_WEIGHT
-      ? DEFAULT_WEIGHT_JUSTIFICATION
-      : String(getFeatureJustification(feature) || "");
-
-  if (!isFeatureValid(feature)) {
-    saveError.value = `Justification required for ${prettifyLabel(feature)}.`;
-    return;
-  }
+  const justification = Number(weight) === DEFAULT_WEIGHT ? DEFAULT_WEIGHT_JUSTIFICATION : String(getFeatureJustification(feature) || "");
+  if (!isFeatureValid(feature)) { saveError.value = `Justification required.`; return; }
 
   saving.value = true;
   saveError.value = "";
   saveOk.value = false;
 
   try {
-    const summaryRowsLocal = buildSummaryRows(feature);
-
-    const resp = await fetch("http://127.0.0.1:8000/results/save_weights", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        run_id: props.runId,
-        metric: props.metricKey,
-        schema_type_report: schemaTypeReport.value,
-        context_report: {
-          [feature]: rowsToDict(summaryRowsLocal),
-        },
-        weights: { [feature]: weight },
-        justifications: { [feature]: justification },
-      }),
+    const payload = buildConditionalNestedFeatureSavePayload({
+      runId: props.runId, group: group.value, metric: metricKey.value, schemaType: schemaTypeReport.value, 
+      feature, metricObj: metricObj.value, weight, justification, formatLabel: prettifyLabel, formatValue: formatAny,
     });
-
-    if (!resp.ok) {
-      const err = await resp.json().catch(() => ({}));
-      throw new Error(
-        err.detail || (await resp.text()) || "Failed to save feature"
-      );
-    }
-
-    savedFeatures.value = {
-      ...savedFeatures.value,
-      [feature]: true,
-    };
-
-    saveOk.value = true;
-  } catch (e) {
-    saveError.value = e?.message || String(e);
-  } finally {
-    saving.value = false;
-  }
+    const resp = await fetch("http://127.0.0.1:8000/results/save_weights", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+    if (!resp.ok) throw new Error("Failed to save feature");
+    savedFeatures.value[feature] = true; saveOk.value = true;
+  } catch (e) { saveError.value = e?.message || String(e); } finally { saving.value = false; }
 }
 
-//saving for the report generation if no weight is saved -> weight will be = 5 and justification will be default
 async function saveMissingFeaturesWithDefaultWeight() {
   if (saving.value) return;
-
   saving.value = true;
-  saveError.value = "";
-  saveOk.value = false;
-
   try {
     for (const feature of featureKeys.value) {
       ensureFeatureState(feature);
-
       if (isFeatureSaved(feature)) continue;
-
-      const summaryRowsLocal = buildSummaryRows(feature);
-
-      const resp = await fetch("http://127.0.0.1:8000/results/save_weights", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          run_id: props.runId,
-          metric: props.metricKey,
-          schema_type_report: schemaTypeReport.value,
-          context_report: {
-            [feature]: rowsToDict(summaryRowsLocal),
-          },
-          weights: { [feature]: DEFAULT_WEIGHT },
-          justifications: { [feature]: DEFAULT_WEIGHT_JUSTIFICATION },
-        }),
+      const payload = buildConditionalNestedFeatureSavePayload({
+        runId: props.runId, group: group.value, metric: metricKey.value, schemaType: schemaTypeReport.value, 
+        feature, metricObj: metricObj.value, weight: DEFAULT_WEIGHT, justification: DEFAULT_WEIGHT_JUSTIFICATION, formatLabel: prettifyLabel, formatValue: formatAny,
       });
-
-      if (!resp.ok) {
-        const err = await resp.json().catch(() => ({}));
-        throw new Error(
-          err.detail ||
-            (await resp.text()) ||
-            `Failed to save default weight for "${feature}"`
-        );
-      }
-
-      featureWeights.value = {
-        ...featureWeights.value,
-        [feature]: DEFAULT_WEIGHT,
-      };
-
-      featureJustifications.value = {
-        ...featureJustifications.value,
-        [feature]: DEFAULT_WEIGHT_JUSTIFICATION,
-      };
-
-      savedFeatures.value = {
-        ...savedFeatures.value,
-        [feature]: true,
-      };
+      await fetch("http://127.0.0.1:8000/results/save_weights", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      featureWeights.value[feature] = DEFAULT_WEIGHT; featureJustifications.value[feature] = DEFAULT_WEIGHT_JUSTIFICATION; savedFeatures.value[feature] = true;
     }
-
-    saveOk.value = true;
-  } catch (e) {
-    saveError.value = e?.message || String(e);
-  } finally {
-    saving.value = false;
-  }
+  } catch (e) { console.error(e); } finally { saving.value = false; }
 }
 
 async function goBackSafely() {
   await saveMissingFeaturesWithDefaultWeight();
   emit("go-back-safe");
 }
+defineExpose({ goBackSafely });
 
-defineExpose({
-  goBackSafely,
+const featureKeys = computed(() => {
+  const obj = metricObj.value;
+  if (!obj || typeof obj !== "object") return [];
+  return Object.keys(obj).filter(k => k !== "__combined__" && k !== "(global)");
 });
 
-//OnMount features 
-onMounted(() => {
-  for (const feature of featureKeys.value) {
-    ensureFeatureState(feature);
+const resultSchemas = ref({});
+const schemaTypeReport = computed(() => resultSchemas.value?.[metricKey.value]?.schema ?? null);
+
+async function loadResultSchemas() {
+  try {
+    const resp = await fetch(`http://127.0.0.1:8000/results/result_schemas?run_id=${encodeURIComponent(props.runId)}`);
+    if (resp.ok) resultSchemas.value = await resp.json();
+  } catch (e) {}
+}
+onMounted(loadResultSchemas);
+
+function prettifyLabel(str) { return (!str || typeof str !== "string") ? "" : str.replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase()); }
+function formatAny(v) {
+  if (v === null || v === undefined) return "—";
+  if (typeof v === "boolean") return v ? "True" : "False";
+  return typeof v === "number" ? (Number.isFinite(v) ? v.toFixed(3) : "—") : String(v);
+}
+function formatHeaderKey(k) { const num = Number(k); return !Number.isNaN(num) && k !== "" ? num.toFixed(3) : prettifyLabel(k); }
+function isScalar(v) { return v === null || v === undefined || ["string", "number", "boolean"].includes(typeof v); }
+function looksLikeGroupMap(v) { if (!isPlainObject(v)) return false; const entries = Object.entries(v); return entries.length > 0 && entries.every(([k, val]) => typeof k === "string" && isScalar(val)); }
+
+function getFeatureObject(featureKey) { return sharedGetFeatureObject(metricObj.value, featureKey); }
+function getConditionsKeyForFeature(featureObjLocal) {
+  if (!isPlainObject(featureObjLocal)) return null;
+  let bestKey = null, bestRows = -1;
+  for (const [k, v] of Object.entries(featureObjLocal)) {
+    if (!isPlainObject(v)) continue;
+    const rows = Object.values(v);
+    if (rows.length > 0 && rows.every(isPlainObject) && rows.length > bestRows) { bestRows = rows.length; bestKey = k; }
+  }
+  return bestKey;
+}
+function getContextSummaryRows(feature) { return sharedBuildContextSummaryRows(metricObj.value, feature, prettifyLabel, formatAny); }
+function getSummaryRows(feature) { return sharedBuildSummaryRows(metricObj.value, feature, prettifyLabel, formatAny); }
+function getConditionsKey(feature) { const obj = getFeatureObject(feature); return obj ? getConditionsKeyForFeature(obj) : null; }
+function getConditionsRows(feature) {
+  const obj = getFeatureObject(feature); const key = getConditionsKey(feature);
+  if (!obj || !key || !isPlainObject(obj[key])) return [];
+  return Object.entries(obj[key]).map(([condName, condObj]) => ({ condition: condName, ...(isPlainObject(condObj) ? condObj : {}) }));
+}
+function getConditionsColumns(feature) {
+  const rows = getConditionsRows(feature);
+  if (!rows.length) return [];
+  const set = new Set();
+  for (const row of rows) { for (const k of Object.keys(row)) { if (k !== "condition") set.add(k); } }
+  const all = Array.from(set);
+  const tail = ["raw_difference", "normalized_score", "weight", "total_samples"];
+  const head = all.filter((k) => !tail.includes(k)).sort();
+  const end = tail.filter((k) => all.includes(k));
+  return [...head, ...end];
+}
+function getSummaryKeyForFeature(featureKey) { return sharedGetSummaryKeyForFeature(metricObj.value, featureKey); }
+function getSummaryTitle(featureKey) { const key = getSummaryKeyForFeature(featureKey); return key ? prettifyLabel(key) : "Summary"; }
+function getConditionsFirstColTitle(feature) { const key = getConditionsKey(feature); return key ? prettifyLabel(key) : "Conditions"; }
+function getConditionsTableTitle(feature) { const key = getConditionsKey(feature); return key ? `${prettifyLabel(key)} Table` : "Conditions Table"; }
+
+// Numeric Mode Helpers
+function markerLeft(value) {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return "0%";
+  const clamped = Math.max(0, Math.min(10, num));
+  return `${(clamped / 10) * 100}%`;
+}
+function valueClass(value) {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return "";
+  if (num >= 8) return "ok";
+  if (num >= 5) return "warn";
+  return "bad";
+}
+function toNumberMaybe(x) {
+  if (typeof x === "number") return x;
+  if (x && typeof x === "object") {
+    const vals = Object.values(x);
+    if (vals.length === 1 && typeof vals[0] === "number") return vals[0];
+  }
+  return null;
+}
+function extractFeatureValues(metricObjLocal) {
+  const out = [];
+  if (!metricObjLocal || typeof metricObjLocal !== "object") return out;
+  for (const [featureName, featureVal] of Object.entries(metricObjLocal)) {
+    if (featureName === "(global)") continue;
+    const num = toNumberMaybe(featureVal);
+    if (num !== null) out.push({ label: featureName, value: num });
+  }
+  return out;
+}
+
+onMounted(async () => {
+  try {
+    loading.value = true;
+    error.value = "";
+    
+    const res = await fetch("http://127.0.0.1:8000/results/values_to_display");
+    if (!res.ok) throw new Error(await res.text());
+    const data = await res.json();
+
+    const all = data?.results?.results ?? data?.results ?? data ?? {};
+    metricObj.value = all[metricKey.value];
+
+    if (!metricObj.value) { error.value = `Metric "${metricKey.value}" not found.`; return; }
+
+    const extracted = extractFeatureValues(metricObj.value);
+    if (extracted.length) {
+      items.value = extracted;
+    } else {
+      featureKeys.value.forEach(ensureFeatureState);
+      if (featureKeys.value.length > 0) activeFeatureTab.value = featureKeys.value[0];
+    }
+
+  } catch (e) {
+    error.value = e?.message || String(e);
+  } finally {
+    loading.value = false;
   }
 });
 </script>
 
 <template>
-  <div class="wrap">
-    <!-- Feature jump -->
-    <div class="card" v-if="featureKeys.length > 1">
-      <div class="feature-select">
-        <strong>Feature:</strong>
-        <select
-          v-model="selectedFeatureForJump"
-          class="select"
-          @change="scrollToFeature"
-        >
-          <option value="" disabled>Select a feature</option>
-          <option v-for="k in featureKeys" :key="k" :value="k">
-            {{ prettifyLabel(k) }}
-          </option>
-        </select>
+  <div class="result-layout">
+    <div class="header-area">
+      <div class="header-top">
+        <div class="domain-tag">{{ prettifyLabel(group) }}</div>
+        <button class="btn-ghost" @click="goBackSafely">← Back to Dashboard</button>
+      </div>
+      <h1 class="metric-title">{{ prettifyLabel(metricKey) }}</h1>
+      <p class="metric-subtitle">Review evaluation results and adjust contextual impact.</p>
+    </div>
+
+    <div v-if="loading" class="state-msg">Loading results...</div>
+    <div v-else-if="error" class="error-banner">{{ error }}</div>
+
+    <div v-else-if="items.length" class="numeric-mode-container">
+      <h2 class="section-label">Feature Scores</h2>
+      <div class="numeric-cards-grid">
+        <div v-for="it in items" :key="it.label" class="num-card">
+          <div class="num-header">
+            <h3>{{ prettifyLabel(it.label) }}</h3>
+            <span class="num-badge" :class="valueClass(it.value)">{{ Number(it.value).toFixed(3) }}</span>
+          </div>
+          <div class="progress-track">
+            <div class="progress-fill" :style="{ width: markerLeft(it.value) }"></div>
+          </div>
+          <div class="progress-labels">
+            <span>0</span><span>5</span><span>10</span>
+          </div>
+        </div>
       </div>
     </div>
 
-    <section
-      v-for="feature in featureKeys"
-      :key="feature"
-      :id="`feature-${feature}`"
-      class="feature-section"
-    >
-      <div class="card">
-        <h2>{{ prettifyLabel(feature) }}</h2>
-      </div>
-
-      <!-- Summary -->
-      <div v-if="getSummaryRows(feature).length" class="card">
-        <h3>Summary</h3>
-        <div class="summary-grid">
-          <div
-            v-for="r in getSummaryRows(feature)"
-            :key="r.key"
-            class="summary-line"
-          >
-            <strong>{{ r.key }}</strong><br />
-            <span class="mono">{{ r.value }}</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- 2-column group table -->
-      <div v-if="getRows(feature).length && getGroupMapKey(feature)" class="card">
-        <h3>{{ getGroupMapTitle(feature) }}</h3>
-
-        <div class="table-scroll">
-          <div class="table table-2" :style="{ gridTemplateColumns: getTableGrid2() }">
-            <div class="th">{{ getFirstColTitle(feature) }}</div>
-            <div class="th">{{ getValueColTitle() }}</div>
-
-            <template v-for="r in getRows(feature)" :key="r.group">
-              <div class="td">{{ formatGroupLabel(r.group) }}</div>
-              <div class="td mono">
-                {{ r.value === null ? "—" : r.value.toFixed(3) }}
-              </div>
-            </template>
-          </div>
-        </div>
-      </div>
-
-      <!-- Raw fallback -->
-      <div v-else class="card">
-        <h3>Raw output</h3>
-        <pre class="pre">{{ JSON.stringify(getFeatureObject(feature), null, 2) }}</pre>
-      </div>
-
-      <!-- Weight / save area -->
-      <div class="contextWrap">
-        <div class="impactRow">
-          <div class="impactText">
-            Adjust the impact score (0–10) for
-            <strong>{{ prettifyLabel(feature) }}</strong> using the slider.
-            A higher value means the metric is more relevant for your evaluation scenario.
-          </div>
-
-          <div class="impactControls">
-            <div class="barWrap">
-              <div class="barVisual" aria-hidden="true">
-                <div class="barLine"></div>
-                <div class="barTicks">
-                  <span v-for="t in 11" :key="t" class="tick" />
-                </div>
-                <div class="barLabels">
-                  <span class="lab lab0">0</span>
-                  <span class="lab lab5">5</span>
-                  <span class="lab lab10">10</span>
-                </div>
-              </div>
-
-              <input
-                class="barRange"
-                type="range"
-                min="0"
-                max="10"
-                step="0.1"
-                :value="getFeatureWeight(feature)"
-                @input="setFeatureWeight(feature, $event.target.value)"
-                aria-label="Impact score for this feature"
-              />
-            </div>
-
-            <div class="wval">w={{ getFeatureWeight(feature) }}</div>
-          </div>
-        </div>
-
-        <div class="saveProgress">
-          {{ isFeatureSaved(feature) ? "Saved" : "Not saved" }}
-        </div>
-
-        <div class="contextCard">
-          <div class="contextHint">
-            Standard weight is 5. If a different weight is provided, it will need a textual justification.
-          </div>
-
-          <div v-if="featureNeedsJustification(feature)" class="justRow">
-            <div class="justHead">
-              <strong class="justLabel">Feature impact</strong>
-              <span class="pill">w={{ getFeatureWeight(feature) }}</span>
-              <span class="req">
-                justification required (min {{ MIN_JUST_LENGTH }} characters)
-              </span>
-            </div>
-
-            <textarea
-              class="textarea"
-              :value="getFeatureJustification(feature)"
-              @input="setFeatureJustification(feature, $event.target.value)"
-              rows="3"
-              placeholder="Explain why you changed this weight…"
-            />
-          </div>
-
-          <div
-            v-if="featureNeedsJustification(feature) && !isFeatureValid(feature)"
-            class="blocker"
-          >
-            You changed the weight. Add justification to enable <strong>Saving</strong>.
-          </div>
-
-
-          <div v-if="saveError" class="blocker" style="margin-top: 12px;">
-            {{ saveError }}
-          </div>
-        </div>
-
-        <div class="actions">
-          <button
-            class="primary"
-            :disabled="saving || !isFeatureValid(feature)"
-            @click="saveFeature(feature)"
-          >
-            {{ saving ? "saving…" : `save` }}
+    <div v-else-if="featureKeys.length" class="nested-split">
+      <aside class="tabs-sidebar">
+        <h3 class="tabs-title">Evaluated Features</h3>
+        <div class="tabs-list">
+          <button v-for="k in featureKeys" :key="k" class="tab-btn" :class="{ 'is-active': activeFeatureTab === k }" @click="activeFeatureTab = k">
+            {{ prettifyLabel(k) }}
+            <span class="status-dot" :class="isFeatureSaved(k) ? 'saved' : 'pending'"></span>
           </button>
         </div>
-      </div>
-    </section>
+      </aside>
+
+      <main class="active-feature-content" v-if="activeFeatureTab">
+        
+        <div class="data-block">
+          <h2 class="section-label">Results for {{ prettifyLabel(activeFeatureTab) }}</h2>
+          <div class="data-cards-grid">
+            <div class="data-card" v-if="getContextSummaryRows(activeFeatureTab).length">
+              <h3>Context</h3>
+              <div class="keyval-list">
+                <div v-for="r in getContextSummaryRows(activeFeatureTab)" :key="r.key" class="keyval-item">
+                  <span class="key">{{ prettifyLabel(r.key) }}</span><span class="val mono">{{ formatAny(r.value) }}</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="data-card" v-if="getSummaryRows(activeFeatureTab).length">
+              <h3>{{ getSummaryTitle(activeFeatureTab) }}</h3>
+              <div class="keyval-list">
+                <div v-for="r in getSummaryRows(activeFeatureTab)" :key="r.key" class="keyval-item">
+                  <span class="key">{{ prettifyLabel(r.key) }}</span><span class="val mono">{{ formatAny(r.value) }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="table-card" v-if="getConditionsRows(activeFeatureTab).length">
+            <h3>{{ getConditionsTableTitle(activeFeatureTab) }}</h3>
+            <div class="table-responsive">
+              <table class="modern-table">
+                <thead>
+                  <tr>
+                    <th>{{ getConditionsFirstColTitle(activeFeatureTab) }}</th>
+                    <th v-for="c in getConditionsColumns(activeFeatureTab)" :key="c">{{ formatHeaderKey(c) }}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="r in getConditionsRows(activeFeatureTab)" :key="r.condition">
+                    <td><strong>{{ Number(r.condition) ? Number(r.condition).toFixed(3) : r.condition }}</strong></td>
+                    <td v-for="c in getConditionsColumns(activeFeatureTab)" :key="c" class="mono">{{ formatAny(r[c]) }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+
+        <div class="weight-block">
+          <h2 class="section-label">Contextual Impact</h2>
+          <div class="weight-card">
+            <div class="weight-header">
+              <p class="help-text">Set the specific weight (0-10) for this feature. Default is 5.</p>
+              <span class="weight-display">W = {{ getFeatureWeight(activeFeatureTab) }}</span>
+            </div>
+
+            <input type="range" min="0" max="10" step="0.5" :value="getFeatureWeight(activeFeatureTab)" @input="setFeatureWeight(activeFeatureTab, $event.target.value)" class="modern-slider" />
+
+            <div class="justification-area" :class="{ 'is-active': featureNeedsJustification(activeFeatureTab) }">
+              <div v-if="featureNeedsJustification(activeFeatureTab)">
+                <div class="just-header">
+                  <label>Justification</label>
+                  <span v-if="!isFeatureValid(activeFeatureTab)" class="req-badge">Req. (min {{ MIN_JUST_LENGTH }} chars)</span>
+                  <span v-else class="ok-badge">Valid ✓</span>
+                </div>
+                <textarea :value="getFeatureJustification(activeFeatureTab)" @input="setFeatureJustification(activeFeatureTab, $event.target.value)" class="modern-textarea" rows="3" placeholder="Explain this weight..."></textarea>
+              </div>
+              <div v-else class="just-placeholder">
+                <p>Weight is 5. No justification needed.</p>
+              </div>
+            </div>
+
+            <div class="action-row">
+              <span class="save-status" :class="{ 'is-saved': isFeatureSaved(activeFeatureTab) }">
+                {{ isFeatureSaved(activeFeatureTab) ? '✓ Saved' : 'Unsaved changes' }}
+              </span>
+              <button class="btn-primary" :disabled="saving || !isFeatureValid(activeFeatureTab)" @click="saveFeature(activeFeatureTab)">
+                {{ saving ? "Saving..." : "Save Feature" }}
+              </button>
+            </div>
+            <div v-if="saveError" class="error-msg">{{ saveError }}</div>
+
+          </div>
+        </div>
+      </main>
+    </div>
   </div>
 </template>
 
 <style scoped>
-.wrap {
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
-  align-items: center;
-  margin-top: 40px;
-}
+.result-layout { max-width: 1300px; margin: 0 auto; padding: 2rem; font-family: 'Inter', sans-serif; color: #111; }
+.header-area { margin-bottom: 3rem; }
+.header-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+.domain-tag { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 1px; font-weight: 700; color: #1243e3; background: #f4f6fe; padding: 4px 10px; border-radius: 4px; }
+.btn-ghost { background: transparent; border: none; font-family: 'Inter', sans-serif; font-weight: 600; color: #666; cursor: pointer; transition: 0.2s; }
+.btn-ghost:hover { color: #111; }
+.metric-title { font-family: 'Instrument Serif', serif; font-size: 3.5rem; margin: 0 0 0.5rem 0; color: #1A365D; line-height: 1.1; }
+.metric-subtitle { font-size: 1.1rem; color: #555; max-width: 700px; line-height: 1.5; margin: 0; }
 
-.feature-section {
-  width: 100%;
-  max-width: 980px;
-  display: flex;
-  flex-direction: column;
-  gap: 24px;
-}
+/* Numeric Mode */
+.numeric-mode-container { width: 100%; margin-top: 1rem; }
+.numeric-cards-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1.5rem; }
+.num-card { background: #fff; border: 1px solid #e5e5e5; border-radius: 12px; padding: 1.5rem; }
+.num-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+.num-header h3 { margin: 0; font-size: 1.1rem; color: #111; }
+.num-badge { font-family: 'JetBrains Mono', monospace; font-weight: 700; padding: 4px 10px; border-radius: 6px; }
+.num-badge.ok { background: #dcfce7; color: #065f46; }
+.num-badge.warn { background: #fef3c7; color: #92400e; }
+.num-badge.bad { background: #fee2e2; color: #991b1b; }
+.progress-track { height: 8px; background: #f0f0f0; border-radius: 999px; overflow: hidden; margin-bottom: 0.5rem; }
+.progress-fill { height: 100%; background: #111; border-radius: 999px; transition: width 0.3s ease; }
+.progress-labels { display: flex; justify-content: space-between; font-size: 0.75rem; color: #888; font-weight: 600; }
 
-.card {
-  border: 1px solid #e6e6e6;
-  border-radius: 16px;
-  padding: 28px 34px;
-  max-width: 980px;
-  width: 100%;
-  background: #fafafa;
-  text-align: center;
-  margin: 0 auto;
-  box-sizing: border-box;
-}
-.card h2,
-.card h3 {
-  margin: 0 0 18px;
-  font-size: 20px;
-  font-weight: 800;
-}
-
-.feature-select {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-  justify-content: center;
-}
-
-.select {
-  border: 1px solid #ddd;
-  border-radius: 10px;
-  padding: 8px 10px;
-  background: #fff;
-}
-
-.summary-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(160px, 1fr));
-  gap: 22px 34px;
-  justify-items: center;
-  align-items: start;
-  text-align: center;
-  font-size: 16px;
-  line-height: 1.35;
-}
-
-.summary-line {
-  width: 100%;
-  word-break: break-word;
-  overflow-wrap: anywhere;
-  border: 1px solid #eee;
-  background: #fff;
-  border-radius: 12px;
-  padding: 12px 12px;
-}
-
-.summary-line strong {
-  display: block;
-  font-weight: 900;
-  margin-bottom: 4px;
-}
-
-.mono {
-  font-variant-numeric: tabular-nums;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
-    "Liberation Mono", "Courier New", monospace;
-}
-
-.table-scroll {
-  width: 100%;
-  overflow-x: auto;
-  overflow-y: hidden;
-  -webkit-overflow-scrolling: touch;
-  padding-bottom: 6px;
-}
-
-.table {
-  width: 100%;
-  min-width: 900px;
-  display: grid;
-  gap: 6px 8px;
-  align-items: center;
-  text-align: left;
-  background: #fff;
-  border: 1px solid #eee;
-  border-radius: 12px;
-  padding: 12px 14px;
-}
-
-.table.table-2 {
-  width: max-content;
-  min-width: unset;
-  margin: 0 auto;
-  column-gap: 22px;
-  row-gap: 8px;
-}
-
-.table.table-2 > .th {
-  border-bottom: 1px solid #eee;
-  padding-bottom: 8px;
-  margin-bottom: 6px;
-}
-
-.table.table-2 > .td:nth-child(odd) {
-  text-align: center;
-  justify-self: center;
-}
-
-.th {
-  font-weight: 900;
-  white-space: normal;
-  line-height: 1.2;
-}
-
-.td {
-  white-space: nowrap;
-  padding: 6px 0;
-}
-
-.pre {
-  background: #fff;
-  border: 1px solid #eee;
-  border-radius: 12px;
-  padding: 16px;
-  overflow: auto;
-  max-height: 360px;
-  font-size: 12px;
-  text-align: left;
-  white-space: pre-wrap;
-}
-
-.contextWrap {
-  max-width: 980px;
-  width: 100%;
-}
-
-/* sentence + slider row */
-.impactRow{
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 10px;
-}
-
-.impactText{
-  width: 100%;
-  max-width: var(--impactW);
-  margin: 0 auto;
-  text-align: center;
-  padding: 0;
-}
-
-.impactControls{
-  width: 100%;
-  max-width: var(--impactW);
-  margin: 0 auto;
-  position: relative;
-  display: flex;
-  justify-content: center;
-}
-
-.wval {
-  position: absolute;
-  right: 0;
-  bottom: -18px;
-  font-weight: 800;
-  font-size: 12px;
-  opacity: 1;
-}
-
-/* slider */
-.barWrap {
-  position: relative;
-  width: 100%;
-  height: 34px;
-  min-width: 0;
-  flex: 1 1 auto;
-}
-
-.barVisual {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-}
-
-.barLine {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 16px;
-  height: 4px;
-  border-radius: 999px;
-  background: #111;
-}
-
-.barTicks {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 16px;
-  height: 4px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.tick {
-  width: 2px;
-  height: 8px;
-  background: #111;
-  transform: translateY(-2px);
-  opacity: 0.9;
-  border-radius: 1px;
-}
-
-.barLabels {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 22px;
-  font-size: 12px;
-  font-weight: 800;
-  color: #111;
-}
-
-.lab {
-  position: absolute;
-  transform: translateX(-50%);
-}
-
-.lab0 {
-  left: 0%;
-  transform: translateX(0%);
-}
-
-.lab5 {
-  left: 50%;
-}
-
-.lab10 {
-  left: 100%;
-  transform: translateX(-100%);
-}
-
-.barRange {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  margin: 0;
-  background: transparent;
-  -webkit-appearance: none;
-  appearance: none;
-}
-
-.barRange::-webkit-slider-runnable-track {
-  height: 4px;
-  background: transparent;
-  border: none;
-}
-
-.barRange::-moz-range-track {
-  height: 4px;
-  background: transparent;
-  border: none;
-}
-
-.barRange::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 14px;
-  height: 14px;
-  background: #111;
-  transform: rotate(45deg);
-  border-radius: 2px;
-  cursor: pointer;
-  margin-top: 10px;
-}
-
-.barRange::-moz-range-thumb {
-  width: 14px;
-  height: 14px;
-  background: #111;
-  transform: rotate(45deg);
-  border-radius: 2px;
-  cursor: pointer;
-  border: none;
-}
-
-.contextCard {
-  margin-top: 10px;
-  border: 1px solid #e6e6e6;
-  border-radius: 16px;
-  padding: 18px 18px;
-  background: #fafafa;
-  text-align: left;
-}
-
-.contextHint {
-  opacity: 0.7;
-  margin-bottom: 12px;
-  font-size: 14px;
-  text-align: center;
-}
-
-.justRow {
-  margin-top: 12px;
-}
-
-.justHead {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  margin-bottom: 6px;
-  flex-wrap: wrap;
-}
-
-.pill {
-  font-size: 12px;
-  font-weight: 900;
-  background: #eef3ff;
-  border: 1px solid #d8e5ff;
-  padding: 3px 8px;
-  border-radius: 999px;
-}
-
-.req {
-  font-size: 12px;
-  font-weight: 900;
-  color: #b40000;
-  margin-left: auto;
-}
-
-.textarea {
-  width: 100%;
-  border: 1px solid #ddd;
-  border-radius: 12px;
-  padding: 10px 12px;
-  resize: vertical;
-  background: #fff;
-}
-
-.blocker {
-  margin-top: 14px;
-  padding: 10px 12px;
-  border-radius: 12px;
-  background: #fff1f1;
-  border: 1px solid #ffd2d2;
-  font-weight: 800;
-}
-
-
-.actions {
-  margin-top: 16px;
-  display: flex;
-  justify-content: flex-end;
-  align-items: center;
-}
-
-.primary {
-  border: none;
-  cursor: pointer;
-  border-radius: 999px;
-  padding: 10px 18px;
-  font-size: 18px;
-  font-weight: 900;
-  background: #111;
-  color: #fff;
-}
-
-.primary:disabled {
-  cursor: not-allowed;
-  opacity: 0.35;
-}
-
-.saveProgress {
-  margin-top: 14px;
-  text-align: center;
-  font-weight: 800;
-  font-size: 14px;
-  opacity: 1;
-}
+/* Nested Split Mode */
+.nested-split { display: grid; grid-template-columns: 240px 1fr; gap: 3rem; align-items: start; }
+@media (max-width: 900px) { .nested-split { grid-template-columns: 1fr; } }
+.section-label { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 1px; font-weight: 600; color: #888; margin: 0 0 1rem 0; border-bottom: 1px solid #e5e5e5; padding-bottom: 0.5rem; }
+.tabs-sidebar { position: sticky; top: 2rem; }
+.tabs-title { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 1px; font-weight: 700; color: #555; margin-bottom: 1rem; }
+.tabs-list { display: flex; flex-direction: column; gap: 0.5rem; }
+.tab-btn { display: flex; justify-content: space-between; align-items: center; width: 100%; text-align: left; background: #fff; border: 1px solid #e5e5e5; padding: 1rem; border-radius: 8px; font-family: 'Inter', sans-serif; font-size: 0.95rem; font-weight: 600; color: #555; cursor: pointer; transition: 0.2s; }
+.tab-btn:hover { border-color: #111; color: #111; }
+.tab-btn.is-active { background: #111; color: #fff; border-color: #111; }
+.status-dot { width: 8px; height: 8px; border-radius: 50%; }
+.status-dot.saved { background: #10b981; }
+.status-dot.pending { background: #f59e0b; }
+.active-feature-content { display: flex; flex-direction: column; gap: 3rem; }
+.data-cards-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem; margin-bottom: 1.5rem; }
+.data-card { background: #fff; border: 1px solid #e5e5e5; border-radius: 12px; padding: 1.5rem; }
+.data-card h3 { font-size: 1.1rem; margin: 0 0 1rem 0; color: #111; }
+.keyval-list { display: flex; flex-direction: column; gap: 0.8rem; }
+.keyval-item { display: flex; justify-content: space-between; border-bottom: 1px solid #f9f9f9; padding-bottom: 0.4rem; }
+.key { font-size: 0.85rem; color: #666; font-weight: 600; }
+.val { font-weight: 700; }
+.table-card { background: #fff; border: 1px solid #e5e5e5; border-radius: 12px; padding: 1.5rem; overflow: hidden; }
+.table-card h3 { font-size: 1.1rem; margin: 0 0 1rem 0; }
+.table-responsive { overflow-x: auto; }
+.modern-table { width: 100%; border-collapse: collapse; text-align: left; font-size: 0.9rem; }
+.modern-table th { background: #fafafa; padding: 1rem; font-weight: 600; color: #555; border-bottom: 2px solid #e5e5e5; white-space: nowrap; }
+.modern-table td { padding: 1rem; border-bottom: 1px solid #f0f0f0; }
+.modern-table tr:hover td { background: #fdfdfd; }
+.mono { font-family: 'JetBrains Mono', monospace; font-variant-numeric: tabular-nums; }
+.weight-card { background: #fafafa; border: 1px solid #e5e5e5; border-radius: 12px; padding: 2rem; }
+.weight-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 1.5rem; }
+.help-text { font-size: 0.9rem; color: #666; margin: 0; max-width: 80%; }
+.weight-display { font-family: 'JetBrains Mono', monospace; font-weight: 700; background: #111; color: #fff; padding: 4px 10px; border-radius: 999px; font-size: 0.9rem; }
+.modern-slider { -webkit-appearance: none; width: 100%; height: 6px; border-radius: 999px; background: #e5e5e5; outline: none; transition: 0.2s; margin-bottom: 2rem; }
+.modern-slider::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 20px; height: 20px; border-radius: 50%; background: #1243e3; cursor: pointer; border: 2px solid #fff; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
+.justification-area { background: #fff; border: 1px solid #e5e5e5; border-radius: 8px; padding: 1.2rem; transition: 0.3s; margin-bottom: 1.5rem; }
+.justification-area.is-active { border-color: #111; }
+.just-header { display: flex; justify-content: space-between; margin-bottom: 0.8rem; }
+.just-header label { font-size: 0.9rem; font-weight: 700; }
+.req-badge { font-size: 0.75rem; font-weight: 700; color: #e11d48; background: #fff1f2; padding: 2px 6px; border-radius: 4px; }
+.ok-badge { font-size: 0.75rem; font-weight: 700; color: #16a34a; background: #f0fdf4; padding: 2px 6px; border-radius: 4px; }
+.modern-textarea { width: 100%; padding: 0.8rem; border: 1px solid #e5e5e5; border-radius: 6px; font-family: 'Inter', sans-serif; resize: vertical; box-sizing: border-box; }
+.modern-textarea:focus { outline: none; border-color: #1243e3; }
+.just-placeholder p { margin: 0; font-size: 0.9rem; color: #888; text-align: center; font-style: italic; }
+.action-row { display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #e5e5e5; padding-top: 1.5rem; }
+.save-status { font-size: 0.9rem; font-weight: 600; color: #f59e0b; }
+.save-status.is-saved { color: #10b981; }
+.btn-primary { background: #111; color: #fff; border: 1px solid #111; padding: 0.8rem 1.5rem; border-radius: 6px; font-family: 'Inter', sans-serif; font-weight: 600; cursor: pointer; }
+.btn-primary:hover:not(:disabled) { background: #1243e3; border-color: #1243e3; }
+.btn-primary:disabled { background: #e5e5e5; color: #a0a0a0; border-color: #e5e5e5; cursor: not-allowed; }
+.error-msg { color: #e11d48; font-size: 0.9rem; margin-top: 1rem; font-weight: 500; }
 </style>

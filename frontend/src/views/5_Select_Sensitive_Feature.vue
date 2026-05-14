@@ -209,7 +209,7 @@ onMounted(fetchColumns);
 .main-title {
   font-family: 'Instrument Serif', serif;
   font-size: 4rem;
-  color: #1A365D;
+  color: #1243e3;
   margin-bottom: 1rem;
 }
 
@@ -294,7 +294,7 @@ onMounted(fetchColumns);
 .icon-wrap {
   width: 32px;
   height: 32px;
-  border: 1px solid #1A365D;
+  border: 1px solid #1243e3;
   border-radius: 50%;
   display: flex;
   align-items: center;

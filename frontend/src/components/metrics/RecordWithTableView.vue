@@ -11,34 +11,26 @@ import {
 } from "../../utils/report_builder_helper";
 
 const router = useRouter();
-
 const route = useRoute();
 
 const group = computed(() => String(route.params.group || "")); 
 
 const props = defineProps({
   metricKey: { type: String, required: true },
-  metricObj: { type: Object, required: true }, // whole metric results object for this metricKey
+  metricObj: { type: Object, required: true },
   runId: { type: [String, Number], required: true }, 
 });
 
-//for saving weights = 5 if go back
 const saving = ref(false);
 const saveError = ref("");
 const saveOk = ref(false);
 
-/** ---------- helpers ---------- */
 function prettifyLabel(str) {
   if (!str) return "";
-  return String(str)
-    .replace(/_/g, " ")
-    .toLowerCase()
-    .replace(/\b\w/g, (c) => c.toUpperCase());
+  return String(str).replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-function isListOfDicts(v) {
-  return Array.isArray(v) && v.length > 0 && v.every(isPlainObject);
-}
+function isListOfDicts(v) { return Array.isArray(v) && v.length > 0 && v.every(isPlainObject); }
 function formatAny(v) {
   if (v === null || v === undefined) return "—";
   if (typeof v === "boolean") return v ? "True" : "False";
@@ -47,7 +39,6 @@ function formatAny(v) {
   return String(v);
 }
 
-/** ---------- feature selection (supports both per-feature and global-style metrics) ---------- */
 const featureKeys = computed(() =>
   props.metricObj && typeof props.metricObj === "object"
     ? Object.keys(props.metricObj).filter((k) => k !== "__combined__" && k !== "(global)")
@@ -55,95 +46,57 @@ const featureKeys = computed(() =>
 );
 
 const selectedFeature = ref("");
-watch(
-  featureKeys,
-  (keys) => {
+watch(featureKeys, (keys) => {
     if (!selectedFeature.value && keys.length) selectedFeature.value = keys[0];
     if (selectedFeature.value && !keys.includes(selectedFeature.value)) selectedFeature.value = keys[0] || "";
-  },
-  { immediate: true }
+  }, { immediate: true }
 );
 
-/**
- * If metricObj is already a record (privacy metrics often are),
- * featureObj should be metricObj itself.
- * If it is per-feature, use selectedFeature.
- */
 const featureObj = computed(() => {
   const o = props.metricObj;
   if (!isPlainObject(o)) return null;
 
-  // heuristic-free: if any value is a plain object, it's likely per-feature;
-  // otherwise treat as record.
   const hasNestedObject = Object.values(o).some(isPlainObject);
   if (!hasNestedObject) return o;
 
-  // if "(global)" exists, treat that as the record
   if (isPlainObject(o["(global)"])) return o["(global)"];
-
-  // else per-feature selection
   return selectedFeature.value ? o[selectedFeature.value] ?? null : null;
 });
 
-/** ---------- Summary rows: all scalar-ish + small arrays (exclude list-of-dicts tables) ---------- */
 const summaryRows = computed(() => {
   const o = featureObj.value;
   if (!isPlainObject(o)) return [];
-
   const rows = [];
   for (const [k, v] of Object.entries(o)) {
-    if (isListOfDicts(v)) continue; // tables handled elsewhere
-
+    if (isListOfDicts(v)) continue; 
     const scalar = isScalar(v);
-    const smallArray =
-      Array.isArray(v) && v.length <= 50 && v.every((x) => ["string", "number", "boolean"].includes(typeof x));
-
+    const smallArray = Array.isArray(v) && v.length <= 50 && v.every((x) => ["string", "number", "boolean"].includes(typeof x));
     if (scalar || smallArray) rows.push({ key: k, value: v });
   }
-
   rows.sort((a, b) => a.key.localeCompare(b.key));
   return rows;
 });
 
-/** ---------- Tables: all list-of-dicts fields dynamically ---------- */
 const tableBlocks = computed(() => {
   const o = featureObj.value;
   if (!isPlainObject(o)) return [];
-
   const blocks = [];
   for (const [k, v] of Object.entries(o)) {
     if (!isListOfDicts(v)) continue;
-
-    // dynamic columns: union of keys across all rows
     const colSet = new Set();
     for (const row of v) Object.keys(row).forEach((ck) => colSet.add(ck));
-
     const columns = Array.from(colSet).sort((a, b) => a.localeCompare(b));
     const grid = `repeat(${columns.length}, minmax(140px, 1fr))`;
-
-    blocks.push({
-      key: k,
-      title: prettifyLabel(k),
-      rows: v,
-      columns,
-      grid,
-    });
+    blocks.push({ key: k, title: prettifyLabel(k), rows: v, columns, grid });
   }
   return blocks;
 });
 
-//Metric level weight
 const MIN_JUST_LENGTH = 10;
-
 const metricWeight = ref(DEFAULT_WEIGHT);
 const metricJustification = ref("");
 
-const contextualOpen = ref(true);
-
-function isChangedMetric() {
-  return Number(metricWeight.value) !== DEFAULT_WEIGHT;
-}
-
+function isChangedMetric() { return Number(metricWeight.value) !== DEFAULT_WEIGHT; }
 const missingJustifications = computed(() => {
   if (!isChangedMetric()) return [];
   const txt = String(metricJustification.value || "").trim();
@@ -155,593 +108,219 @@ const canSave = computed(() => {
   return missingJustifications.value.length === 0;
 });
 
-const lockContextual = computed(() => isChangedMetric() && !canSave.value);
-const showContext = computed(() => contextualOpen.value);
-
-function toggleContext() {
-  if (lockContextual.value) {
-    contextualOpen.value = true;
-    return;
-  }
-  contextualOpen.value = !contextualOpen.value;
-}
-
-async function onWeightInput() {
-  if (isChangedMetric()) contextualOpen.value = true;
-  if (lockContextual.value) contextualOpen.value = true;
-}
-
-//build payload 
 function buildSavePayload() {
   const contextReport = rowsToDict(summaryRows.value);
-
   return buildRecordWithTableSavePayload({
     runId: props.runId,
     group: group.value,
     metric: props.metricKey,
     metricObj: contextReport,
     userWeight: isChangedMetric() ? Number(metricWeight.value) : DEFAULT_WEIGHT,
-    userJustification:
-      Number(metricWeight.value) === DEFAULT_WEIGHT
-        ? DEFAULT_WEIGHT_JUSTIFICATION
-        : String(metricJustification.value || "").trim(),
+    userJustification: Number(metricWeight.value) === DEFAULT_WEIGHT ? DEFAULT_WEIGHT_JUSTIFICATION : String(metricJustification.value || "").trim(),
   });
 }
 
 async function postSaveMetric() {
   const resp = await fetch("http://127.0.0.1:8000/results/save_weights", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(buildSavePayload()),
+    method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(buildSavePayload()),
   });
-
-  if (!resp.ok) {
-    const err = await resp.json().catch(() => ({}));
-    throw new Error(err.detail || (await resp.text()) || "Failed to save weight");
-  }
-
+  if (!resp.ok) throw new Error("Failed to save weight");
   return resp.json().catch(() => ({}));
 }
 
 async function onSave() {
   if (!canSave.value || saving.value) return;
-
   saving.value = true;
   saveError.value = "";
   saveOk.value = false;
-
   try {
     await postSaveMetric();
     saveOk.value = true;
-    contextualOpen.value = false;
     router.back();
-  } catch (e) {
-    saveError.value = e?.message || String(e);
-  } finally {
-    saving.value = false;
-  }
+  } catch (e) { saveError.value = e?.message || String(e); } finally { saving.value = false; }
 }
 
-function back() {
-  router.back();
+// Per emulare il goBackSafely di ConditionalNested e non rompere la dashboard
+const emit = defineEmits(["go-back-safe"]);
+async function goBackSafely() {
+  if (isChangedMetric() && canSave.value) {
+    await onSave();
+  } else if (!isChangedMetric()) {
+    // Save defaults silently before exiting if untouched
+    try { await postSaveMetric(); } catch(e){}
+  }
+  emit("go-back-safe");
 }
+defineExpose({ goBackSafely });
 </script>
 
 <template>
-  <div class="wrap">
-
-    <!-- Summary -->
-    <div v-if="summaryRows.length" class="card">
-      <h3>Summary</h3>
-      <div class="summary-grid">
-        <div v-for="r in summaryRows" :key="r.key" class="summary-line">
-          <strong>{{ prettifyLabel(r.key) }}</strong><br />
-          <span class="mono">{{ formatAny(r.value) }}</span>
-        </div>
+  <div class="result-layout">
+    
+    <div class="header-area">
+      <div class="header-top">
+        <div class="domain-tag">{{ prettifyLabel(group) }}</div>
+        <button class="btn-ghost" @click="goBackSafely">← Back to Dashboard</button>
       </div>
+      <h1 class="metric-title">{{ prettifyLabel(metricKey) }}</h1>
+      <p class="metric-subtitle">Review the evaluation data and assign a contextual weight based on your scenario.</p>
     </div>
 
-    <!-- Dynamic tables for each list-of-dicts -->
-    <div v-for="tb in tableBlocks" :key="tb.key" class="card">
-      <h3>{{ tb.title }}</h3>
-
-      <div class="table-scroll">
-        <div class="table table-wide">
-          <!-- Header -->
-          <div class="row header" :style="{ gridTemplateColumns: tb.grid }">
-            <div v-for="c in tb.columns" :key="c" class="th">
-              {{ prettifyLabel(c) }}
-            </div>
-          </div>
-
-          <!-- Rows -->
-          <div
-            v-for="(r, idx) in tb.rows"
-            :key="idx"
-            class="row"
-            :style="{ gridTemplateColumns: tb.grid }"
-          >
-            <div v-for="c in tb.columns" :key="c" class="td mono">
-              {{ formatAny(r[c]) }}
+    <div class="content-split">
+      
+      <div class="results-column">
+        <h2 class="section-label">Evaluation Data</h2>
+        
+        <div v-if="summaryRows.length" class="data-card">
+          <h3>Summary</h3>
+          <div class="metrics-grid">
+            <div v-for="r in summaryRows" :key="r.key" class="data-item">
+              <span class="data-key">{{ prettifyLabel(r.key) }}</span>
+              <span class="data-value">{{ formatAny(r.value) }}</span>
             </div>
           </div>
         </div>
-      </div>
-    </div>
 
-    <!-- Raw fallback -->
-    <div v-if="!summaryRows.length && !tableBlocks.length" class="card">
-      <h3>Raw output</h3>
-      <pre class="pre">{{ JSON.stringify(featureObj || metricObj, null, 2) }}</pre>
-    </div>
-
-    <div class="contextWrap">
-      <div class="impactRow">
-        <div class="impactText">
-          Adjust the impact score (0–10) for this metric. A higher value means the metric is more
-          relevant for your evaluation scenario.
+        <div v-for="tb in tableBlocks" :key="tb.key" class="table-card">
+          <h3>{{ tb.title }}</h3>
+          <div class="table-responsive">
+            <table class="modern-table">
+              <thead>
+                <tr>
+                  <th v-for="c in tb.columns" :key="c">{{ prettifyLabel(c) }}</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr v-for="(r, idx) in tb.rows" :key="idx">
+                  <td v-for="c in tb.columns" :key="c" class="mono">{{ formatAny(r[c]) }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
 
-        <div class="impactControls">
-          <div class="barWrap">
-            <div class="barVisual" aria-hidden="true">
-              <div class="barLine"></div>
+        <div v-if="!summaryRows.length && !tableBlocks.length" class="data-card empty-state">
+          <h3>Raw output</h3>
+          <pre class="raw-data">{{ JSON.stringify(featureObj || metricObj, null, 2) }}</pre>
+        </div>
+      </div>
 
-              <div class="barTicks">
-                <span
-                  v-for="t in 11"
-                  :key="t"
-                  class="tick"
-                  :class="{ major: (t - 1) % 5 === 0 }"
-                />
-              </div>
+      <div class="context-column">
+        <h2 class="section-label">Contextual Impact</h2>
+        
+        <div class="weight-card">
+          <div class="weight-header">
+            <h3>Metric Weight</h3>
+            <span class="weight-display">W = {{ metricWeight }}</span>
+          </div>
+          
+          <p class="help-text">Adjust the impact score (0–10). A higher value means this metric is critical for your specific use case. Default is 5.</p>
 
-              <div class="barLabels">
-                <span class="lab lab0">0</span>
-                <span class="lab lab5">5</span>
-                <span class="lab lab10">10</span>
-              </div>
+          <div class="slider-container">
+            <div class="slider-labels">
+              <span>0</span><span>5</span><span>10</span>
             </div>
-
-            <input
-              class="barRange"
-              type="range"
-              min="0"
-              max="10"
-              step="0.1"
-              v-model.number="metricWeight"
-              @input="onWeightInput"
-              @change="onWeightInput"
-              aria-label="Impact score for this metric"
+            <input 
+              type="range" min="0" max="10" step="0.5" 
+              v-model.number="metricWeight" 
+              class="modern-slider"
             />
           </div>
 
-          <div class="wval">w={{ metricWeight }}</div>
-        </div>
-      </div>
-
-      <div v-if="showContext" class="contextCard">
-        <div class="contextHint">
-          Standard weight is 5. If a different weight is provided, it will need a textual justification.
-        </div>
-
-        <div v-if="isChangedMetric()" class="justRow">
-          <div class="justHead">
-            <strong class="justLabel">Metric impact</strong>
-            <span class="pill">w={{ metricWeight }} (new weight assigned)</span>
-            <span v-if="String(metricJustification || '').trim().length < MIN_JUST_LENGTH" class="req">
-              justification required (min {{ MIN_JUST_LENGTH }} characters)
-            </span>
+          <div class="justification-area" :class="{ 'is-active': isChangedMetric() }">
+            <div v-if="isChangedMetric()">
+              <div class="just-header">
+                <label>Justification</label>
+                <span v-if="missingJustifications.length" class="req-badge">Req. (min {{ MIN_JUST_LENGTH }} chars)</span>
+                <span v-else class="ok-badge">Valid ✓</span>
+              </div>
+              <textarea 
+                v-model="metricJustification" 
+                class="modern-textarea" 
+                rows="4" 
+                placeholder="Explain why this metric requires a custom weight in your context..."
+              ></textarea>
+            </div>
+            <div v-else class="just-placeholder">
+              <p>Keep the default weight (5) to bypass justification.</p>
+            </div>
           </div>
 
-          <textarea
-            class="textarea"
-            v-model="metricJustification"
-            rows="3"
-            placeholder="Explain why you changed this weight…"
-          />
-        </div>
+          <div v-if="saveError" class="error-msg">{{ saveError }}</div>
 
-        <div v-if="missingJustifications.length" class="blocker">
-          You changed the weight. Add justification to enable <strong>saving</strong>.
-        </div>
+          <div class="action-row">
+            <button class="btn-primary" :disabled="!canSave || saving" @click="onSave" style="width: 100%;">
+              {{ saving ? "Saving..." : "Save & Return" }}
+            </button>
+          </div>
 
-        <div v-if="saveOk" class="okmsg" style="margin-top: 10px;">
-          Saved.
         </div>
       </div>
 
-      <div class="actions">
-        <button class="ghost" @click="back()">‹ back</button>
-
-        <button class="primary" :disabled="!canSave || saving" @click="onSave">
-          {{ saving ? "saving…" : "save ›" }}
-        </button>
-      </div>
-
-      <div v-if="saveError" class="blocker" style="margin-top: 12px;">
-        {{ saveError }}
-      </div>
     </div>
-    </div>
+  </div>
 </template>
 
 <style scoped>
-.wrap {
-  --cardW: 980px;
-  display: flex;
-  flex-direction: column;
-  gap: 14px;
-  align-items: center;
-}
+.result-layout { max-width: 1200px; margin: 0 auto; padding: 2rem; font-family: 'Inter', sans-serif; color: #111; }
+.header-area { margin-bottom: 3rem; }
+.header-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
+.domain-tag { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 1px; font-weight: 700; color: #1243e3; background: #f4f6fe; padding: 4px 10px; border-radius: 4px; display: inline-block; }
+.btn-ghost { background: transparent; border: none; font-family: 'Inter', sans-serif; font-weight: 600; color: #666; cursor: pointer; transition: 0.2s; }
+.btn-ghost:hover { color: #111; }
+.metric-title { font-family: 'Instrument Serif', serif; font-size: 3.5rem; margin: 0 0 0.5rem 0; color: #1A365D; line-height: 1.1; }
+.metric-subtitle { font-size: 1.1rem; color: #555; max-width: 700px; line-height: 1.5; margin: 0; }
 
-.card {
-  border: 1px solid #e6e6e6;
-  border-radius: 16px;
-  padding: 28px 34px;
-  max-width: 980px;
-  width: 100%;
-  background: #fafafa;
-  text-align: center;
-  margin-top: 14px;
-}
+.content-split { display: grid; grid-template-columns: 1fr 400px; gap: 2rem; align-items: start; }
+@media (max-width: 900px) { .content-split { grid-template-columns: 1fr; } }
+.section-label { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 1px; font-weight: 600; color: #888; margin: 0 0 1rem 0; }
 
-.card h3 {
-  margin: 0 0 18px;
-  font-size: 20px;
-  font-weight: 800;
-}
+.data-card { background: #fff; border: 1px solid #e5e5e5; border-radius: 16px; padding: 2rem; margin-bottom: 1.5rem; box-shadow: 0 4px 6px rgba(0,0,0,0.02); }
+.data-card h3 { margin: 0 0 1.5rem 0; font-size: 1.2rem; }
+.metrics-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1.5rem; }
+.data-item { display: flex; flex-direction: column; gap: 0.5rem; padding-bottom: 1rem; border-bottom: 1px solid #f0f0f0; }
+.data-key { font-size: 0.85rem; font-weight: 600; color: #666; text-transform: uppercase; }
+.data-value { font-family: 'JetBrains Mono', monospace; font-size: 1.8rem; font-weight: 700; color: #111; line-height: 1; }
 
-.summary-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
-  font-size: 15px;
-  line-height: 1.4;
-}
+.table-card { background: #fff; border: 1px solid #e5e5e5; border-radius: 12px; padding: 1.5rem; overflow: hidden; margin-bottom: 1.5rem; }
+.table-card h3 { font-size: 1.1rem; margin: 0 0 1rem 0; }
+.table-responsive { overflow-x: auto; }
+.modern-table { width: 100%; border-collapse: collapse; text-align: left; font-size: 0.9rem; }
+.modern-table th { background: #fafafa; padding: 1rem; font-weight: 600; color: #555; border-bottom: 2px solid #e5e5e5; white-space: nowrap; }
+.modern-table td { padding: 1rem; border-bottom: 1px solid #f0f0f0; }
+.modern-table tr:hover td { background: #fdfdfd; }
+.mono { font-family: 'JetBrains Mono', monospace; font-variant-numeric: tabular-nums; }
 
-.summary-line {
-  border: 1px solid #eee;
-  background: #fff;   /* 👈 THIS is the white box */
-  border-radius: 12px;
-  padding: 12px 12px;
-}
+.empty-state { color: #666; }
+.raw-data { background: #f8fafc; padding: 1rem; border-radius: 8px; font-size: 0.85rem; overflow-x: auto; border: 1px solid #e5e5e5; }
 
-.mono {
-  font-variant-numeric: tabular-nums;
-  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
-}
+/* Right Column: Weight */
+.weight-card { background: #fafafa; border: 1px solid #e5e5e5; border-radius: 16px; padding: 2rem; position: sticky; top: 20px;}
+.weight-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; }
+.weight-header h3 { font-size: 1.1rem; font-weight: 700; margin: 0; }
+.weight-display { font-family: 'JetBrains Mono', monospace; font-weight: 700; background: #111; color: #fff; padding: 4px 10px; border-radius: 999px; font-size: 0.9rem; }
+.help-text { font-size: 0.9rem; color: #666; line-height: 1.4; margin-bottom: 2rem; }
 
-/* ========================= */
-/*  TABLE: match card width  */
-/* ========================= */
+.slider-container { margin-bottom: 2.5rem; }
+.slider-labels { display: flex; justify-content: space-between; font-size: 0.8rem; font-weight: 600; color: #888; margin-bottom: 8px; padding: 0 5px; }
+.modern-slider { -webkit-appearance: none; width: 100%; height: 6px; border-radius: 999px; background: #e5e5e5; outline: none; transition: 0.2s; }
+.modern-slider::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 20px; height: 20px; border-radius: 50%; background: #1243e3; cursor: pointer; border: 2px solid #fff; box-shadow: 0 2px 5px rgba(0,0,0,0.2); transition: 0.2s; }
+.modern-slider::-webkit-slider-thumb:hover { transform: scale(1.1); }
 
-.table-scroll {
-  width: 100%;
-  overflow-x: auto;
-  overflow-y: hidden;
-  -webkit-overflow-scrolling: touch;
-  padding-bottom: 6px;
-}
+.justification-area { background: #fff; border: 1px solid #e5e5e5; border-radius: 12px; padding: 1.5rem; margin-bottom: 2rem; transition: border-color 0.3s; }
+.justification-area.is-active { border-color: #1243e3; }
+.just-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.8rem; }
+.just-header label { font-size: 0.9rem; font-weight: 600; }
+.req-badge { font-size: 0.75rem; font-weight: 700; color: #e11d48; background: #fff1f2; padding: 2px 6px; border-radius: 4px; }
+.ok-badge { font-size: 0.75rem; font-weight: 700; color: #16a34a; background: #f0fdf4; padding: 2px 6px; border-radius: 4px; }
+.modern-textarea { width: 100%; padding: 0.8rem; border: 1px solid #e5e5e5; border-radius: 8px; font-family: 'Inter', sans-serif; font-size: 0.9rem; resize: vertical; box-sizing: border-box; }
+.modern-textarea:focus { outline: none; border-color: #1243e3; box-shadow: 0 0 0 3px rgba(18,67,227,0.1); }
+.just-placeholder p { margin: 0; font-size: 0.9rem; color: #888; text-align: center; font-style: italic; }
 
-/* Fill available width (like first page), but still allow scroll when needed */
-.table{
-  width: 100%;
-  min-width: 900px;     /* important: prevents crushing columns */
-  display: grid;        /* or flex+grid rows, but be consistent */
-  background: #fff;
-  border: 1px solid #eee;
-  border-radius: 12px;
-  padding: 12px 14px;
-}
+.error-msg { color: #e11d48; font-size: 0.9rem; margin-bottom: 1rem; text-align: center; font-weight: 500; }
 
-/* was max-content; keep it 100% so it matches the card */
-.table-wide {
-  width: 100%;
-}
-
-.row {
-  display: grid;
-  column-gap: 14px;
-  align-items: center;
-}
-
-.header {
-  border-bottom: 1px solid #eee;
-  padding-bottom: 8px;
-  margin-bottom: 6px;
-}
-
-.th{
-  font-weight: 900;
-  white-space: normal;      /* allow wrapping */
-  line-height: 1.2;
-}
-
-.td {
-  white-space: nowrap;
-  padding: 6px 0;
-}
-
-.pre {
-  background: #fff;
-  border: 1px solid #eee;
-  border-radius: 12px;
-  padding: 16px;
-  overflow: auto;
-  max-height: 360px;
-  font-size: 12px;
-  text-align: left;
-  white-space: pre-wrap;
-}
-
-/* ===================================================================== */
-/* =================== ADDED: ScalarMapView weight + context ============= */
-/* ===================================================================== */
-
-/* Make weight block match .card width exactly */
-.contextWrap{
-  --impactW: 980px;
-  margin-top: 40px;
-  width: 100%;
-}
-
-/* Ensure all major pieces use the same width */
-.contextCard
-.impactText,
-.impactControls,
-.actions{
-  width: 100%;
-  max-width: var(--impactW);
-  margin-left: auto;
-  margin-right: auto;
-}
-
-
-
-.impactRow {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 10px;
-}
-
-.impactText {
-  text-align: center;
-  font-size: 14px;
-  line-height: 1.35;
-  opacity: 0.85;
-  padding: 0;
-}
-
-.impactControls {
-  position: relative;
-  display: flex;
-  justify-content: center;
-}
-
-.wval {
-  position: absolute;
-  right: 0;
-  bottom: -18px;
-  font-weight: 800;
-  font-size: 12px;
-  opacity: 1;
-}
-
-/* slider */
-.barWrap {
-  position: relative;
-  width: 100%;
-  height: 34px;
-}
-
-.barVisual {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-}
-
-.barLine {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 16px;
-  height: 4px;
-  border-radius: 999px;
-  background: #111;
-}
-
-.barTicks {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 16px;
-  height: 4px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.tick {
-  width: 2px;
-  height: 8px;
-  background: #111;
-  transform: translateY(-2px);
-  opacity: 0.9;
-  border-radius: 1px;
-}
-
-.tick.major {
-  height: 12px;
-  transform: translateY(-4px);
-}
-
-.barLabels {
-  position: absolute;
-  left: 0;
-  right: 0;
-  top: 22px;
-  font-size: 12px;
-  font-weight: 800;
-  color: #111;
-}
-
-.lab {
-  position: absolute;
-  transform: translateX(-50%);
-}
-
-.lab0 { left: 0%; transform: translateX(0%); }
-.lab5 { left: 50%; }
-.lab10 { left: 100%; transform: translateX(-100%); }
-
-.barRange {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  margin: 0;
-  background: transparent;
-  -webkit-appearance: none;
-  appearance: none;
-}
-
-.barRange::-webkit-slider-runnable-track {
-  height: 4px;
-  background: transparent;
-  border: none;
-}
-
-.barRange::-moz-range-track {
-  height: 4px;
-  background: transparent;
-  border: none;
-}
-
-.barRange::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 14px;
-  height: 14px;
-  background: #111;
-  transform: rotate(45deg);
-  border-radius: 2px;
-  cursor: pointer;
-  margin-top: 10px;
-}
-
-.barRange::-moz-range-thumb {
-  width: 14px;
-  height: 14px;
-  background: #111;
-  transform: rotate(45deg);
-  border-radius: 2px;
-  cursor: pointer;
-  border: none;
-}
-
-.contextCard {
-  width: 100%;
-  box-sizing: border-box;
-  margin-top: 30px;
-  border: 1px solid #e6e6e6;
-  border-radius: 16px;
-  padding: 18px;
-  background: #fafafa;
-  text-align: left;
-}
-
-.contextHint {
-  opacity: 0.7;
-  margin-bottom: 12px;
-  font-size: 14px;
-  text-align: center;
-}
-
-.justRow {
-  margin-top: 12px;
-  text-align: left;
-}
-
-.justHead {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  margin-bottom: 6px;
-  flex-wrap: wrap;
-}
-
-.justLabel {
-  overflow-wrap: anywhere;
-  word-break: break-word;
-}
-
-.pill {
-  font-size: 12px;
-  font-weight: 900;
-  background: #eef3ff;
-  border: 1px solid #d8e5ff;
-  padding: 3px 8px;
-  border-radius: 999px;
-}
-
-.req {
-  font-size: 12px;
-  font-weight: 900;
-  color: #b40000;
-  margin-left: auto;
-}
-
-.textarea {
-  width: 100%;
-  box-sizing: border-box;
-  border: 1px solid #ddd;
-  border-radius: 12px;
-  padding: 10px 12px;
-  resize: vertical;
-  background: #fff;
-}
-
-.blocker {
-  margin-top: 14px;
-  padding: 10px 12px;
-  border-radius: 12px;
-  background: #fff1f1;
-  border: 1px solid #ffd2d2;
-  font-weight: 800;
-  text-align: left;
-}
-
-/* actions */
-.actions {
-  margin-top: 16px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.ghost {
-  border: none;
-  background: transparent;
-  cursor: pointer;
-  font-size: 22px;
-  font-weight: 700;
-}
-
-.primary {
-  border: none;
-  cursor: pointer;
-  border-radius: 999px;
-  padding: 10px 18px;
-  font-size: 18px;
-  font-weight: 900;
-  background: #111;
-  color: #fff;
-  opacity: 1;
-}
-
-.primary:disabled {
-  cursor: not-allowed;
-  opacity: 0.35;
-}
+.action-row { display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #e5e5e5; padding-top: 1.5rem; }
+.btn-primary { background: #111; color: #fff; border: 1px solid #111; padding: 1rem 1.5rem; border-radius: 6px; font-family: 'Inter', sans-serif; font-weight: 600; font-size: 1rem; cursor: pointer; transition: 0.2s; }
+.btn-primary:hover:not(:disabled) { background: #1243e3; border-color: #1243e3; }
+.btn-primary:disabled { background: #e5e5e5; color: #a0a0a0; border-color: #e5e5e5; cursor: not-allowed; }
 </style>
