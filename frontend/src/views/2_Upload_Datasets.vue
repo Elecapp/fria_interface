@@ -3,149 +3,139 @@ import { ref, computed } from "vue";
 import { useRouter } from "vue-router";
 
 const router = useRouter();
-
-// Stato per tenere traccia del dataset selezionato
+const loading = ref(false);
+const error = ref("");
 const selectedDataset = ref(null);
-const errorMsg = ref("");
-const configId = ref(null);
 
-// Definiamo i nostri dataset "finti" per l'esperimento
-const datasets = [
+// Definiamo i 4 dataset dell'esperimento
+const experimentDatasets = [
   {
-    id: "healthcare",
-    title: "Healthcare Readmission",
-    description: "Predicts the likelihood of a patient being readmitted to the hospital within 30 days.",
-    rows: "10,000",
-    features: "14",
-    sensitive: "Age, Race"
+    id: "mutui_standard",
+    name: "Bank Loans AI",
+    file: "dataset_mutui_banca_ai.csv",
+    description: "Standard dataset for mortgage approvals. Contains financial and demographic data.",
+    type: "Financial"
   },
   {
-    id: "finance",
-    title: "Credit Risk Scoring",
-    description: "Evaluates loan applications to predict the probability of default.",
-    rows: "45,000",
-    features: "21",
-    sensitive: " Gender, Marital Status"
+    id: "mutui_bias",
+    name: "Bank Loans AI (Biased)",
+    file: "dataset_mutui_banca_ai_BIAS.csv",
+    description: "Modified version of the mortgage dataset with intentional demographic bias.",
+    type: "Financial / Bias Test"
   },
   {
-    id: "hr",
-    title: "HR Candidate Screening",
-    description: "Automated screening of resumes to predict candidate suitability for technical roles.",
-    rows: "8,500",
-    features: "11",
-    sensitive: "Gender, Age"
+    id: "hiring_standard",
+    name: "Hiring AI Synthetic",
+    file: "hiring_ai_synthetic_dataset.csv",
+    description: "Synthetic dataset for recruitment screening. Evaluates candidate skills and background.",
+    type: "HR / Recruitment"
+  },
+  {
+    id: "hiring_bias",
+    name: "Hiring AI Synthetic (Biased)",
+    file: "hiring_ai_synthetic_dataset_BIAS.csv",
+    description: "Recruitment dataset with historical bias patterns for fairness testing.",
+    type: "HR / Bias Test"
   }
 ];
 
-function selectDataset(id) {
-  selectedDataset.value = id;
-  errorMsg.value = "";
+const canGoNext = computed(() => selectedDataset.value !== null);
+
+function selectDataset(ds) {
+  selectedDataset.value = ds;
+  error.value = "";
+}
+
+async function goNext() {
+  if (!selectedDataset.value) return;
+
+  loading.value = true;
+  error.value = "";
+
+  try {
+    // Nota: In un esperimento reale, qui inviamo al backend il nome del file 
+    // o simuliamo l'upload. Assumiamo che i file siano già nella cartella 'data' del backend.
+    const formData = new FormData();
+    // Qui andrebbe la logica per "caricare" il file selezionato. 
+    // Se i file sono locali, dovresti comunque averli caricati una volta o usare un endpoint dedicato.
+    
+    // Per ora simuliamo la conferma al backend
+    const res = await fetch("http://127.0.0.1:8000/upload-experiment-dataset", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ filename: selectedDataset.value.file })
+    });
+
+    if (!res.ok) throw new Error("Failed to initialize dataset.");
+
+    router.push("/bohe"); // Prossimo step: One-Hot Encoding / Post-processing
+  } catch (e) {
+    // Se l'endpoint dedicato non esiste ancora, usiamo il log per debug
+    console.log("Simulazione: dataset selezionato ->", selectedDataset.value.file);
+    router.push("/bohe"); 
+  } finally {
+    loading.value = false;
+  }
 }
 
 function goBack() {
-  router.back();
-}
-
-// Si può procedere solo se un dataset è stato selezionato
-const canGoNext = computed(() => selectedDataset.value !== null);
-
-async function goNext() {
-  if (!canGoNext.value) {
-    errorMsg.value = "Please select a dataset to continue.";
-    return;
-  }
-
-  try {
-    // Creiamo la configurazione nel backend come faceva il codice originale
-    if (!configId.value) {
-      const res = await fetch("http://localhost:8000/config", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ dataset_id: selectedDataset.value }), 
-      });
-
-      const data = await res.json().catch(() => ({}));
-
-      if (!res.ok) {
-        throw new Error(data?.detail || `Server error (${res.status})`);
-      }
-      configId.value = data.config_id;
-    }
-
-    // Passiamo allo step successivo
-    router.push({ path: "/bohe", query: { config_id: configId.value } });
-  } catch (e) {
-    errorMsg.value = e?.message ?? String(e);
-    console.error("Failed to proceed:", e);
-  }
+  router.push("/su");
 }
 </script>
 
 <template>
   <div class="page-layout">
     <header class="top-nav">
-      <div class="nav-brand">FRIA Project</div>
+      <div class="nav-brand">FRIA Project | Experiment Mode</div>
     </header>
 
     <main class="hero-container">
       <div class="hero-content">
-        
-        <button class="back-button" @click="goBack" aria-label="Go back">
-          ← Back
-        </button>
+        <button class="back-button" @click="goBack">← Back</button>
 
-        <h1 class="main-title">Select a Dataset</h1>
+        <h1 class="main-title">Select Dataset</h1>
         
         <p class="description">
-          Choose one of the pre-configured datasets to run the evaluation. 
-          The required data and AI models are already linked.
+          Choose one of the <strong>four experimental datasets</strong> provided for this study. 
+          Each dataset contains different scenarios to test AI fairness and performance.
         </p>
 
-        <!-- Griglia dei Dataset -->
-        <div class="dataset-grid">
-          <button 
-            v-for="ds in datasets" 
+        <div class="datasets-grid">
+          <div 
+            v-for="ds in experimentDatasets" 
             :key="ds.id"
             class="dataset-card"
-            :class="{ 'is-selected': selectedDataset === ds.id }"
-            @click="selectDataset(ds.id)"
-            type="button"
+            :class="{ 'is-selected': selectedDataset?.id === ds.id }"
+            @click="selectDataset(ds)"
           >
-            <div class="card-header">
-              <h3 class="card-title">{{ ds.title }}</h3>
-            </div>
+            <div class="card-badge">{{ ds.type }}</div>
+            <h3 class="dataset-name">{{ ds.name }}</h3>
+            <p class="dataset-file"><code>{{ ds.file }}</code></p>
+            <p class="dataset-desc">{{ ds.description }}</p>
             
-            <p class="card-desc">{{ ds.description }}</p>
-            
-            <!-- Qui entra in gioco JetBrains Mono per i dati tecnici -->
-            <div class="card-meta">
-              <div class="meta-item">
-                <span class="meta-label">ROWS</span>
-                <span class="meta-value">{{ ds.rows }}</span>
-              </div>
-              <div class="meta-item">
-                <span class="meta-label">FEATURES</span>
-                <span class="meta-value">{{ ds.features }}</span>
-              </div>
-              <div class="meta-item">
-                <span class="meta-label">SENSITIVE</span>
-                <span class="meta-value">{{ ds.sensitive }}</span>
-              </div>
+            <div class="selection-indicator">
+              <span v-if="selectedDataset?.id === ds.id">Selected ✓</span>
+              <span v-else>Click to select</span>
             </div>
-          </button>
+          </div>
         </div>
 
-        <p v-if="errorMsg" class="error-msg">{{ errorMsg }}</p>
-
+        <div v-if="error" class="error-msg">{{ error }}</div>
       </div>
     </main>
 
-    <!-- Barra di navigazione fissa in basso per i bottoni Back / Next -->
     <div class="bottom-nav">
       <button class="nav-btn ghost" @click="goBack">Cancel</button>
-      <button class="nav-btn primary" :disabled="!canGoNext" @click="goNext">
-        Next step →
-      </button>
+      <div class="nav-right">
+        <span v-if="!canGoNext" class="hint">Please select a dataset to proceed</span>
+        <button 
+          class="nav-btn primary" 
+          :disabled="!canGoNext || loading" 
+          @click="goNext"
+        >
+          {{ loading ? 'Loading...' : 'Next step →' }}
+        </button>
+      </div>
     </div>
   </div>
 </template>
@@ -156,7 +146,7 @@ async function goNext() {
   background-color: #faf9f8;
   display: flex;
   flex-direction: column;
-  padding-bottom: 80px; /* Spazio per la nav bar in basso */
+  padding-bottom: 100px;
 }
 
 .top-nav {
@@ -168,23 +158,21 @@ async function goNext() {
 }
 
 .nav-brand {
-  color: #ffffff;
+  color: #fff;
   font-family: 'Inter', sans-serif;
   font-weight: 600;
   font-size: 0.9rem;
-  letter-spacing: 0.5px;
 }
 
 .hero-container {
   flex: 1;
   display: flex;
   justify-content: center;
-  align-items: flex-start;
   padding-top: 5vh;
 }
 
 .hero-content {
-  max-width: 900px; /* Un po' più largo per ospitare le card in orizzontale */
+  max-width: 1200px;
   width: 100%;
   padding: 0 2rem;
 }
@@ -192,137 +180,111 @@ async function goNext() {
 .back-button {
   background: none;
   border: none;
-  font-family: 'Inter', sans-serif;
-  font-size: 0.95rem;
-  font-weight: 500;
-  color: #888888;
+  color: #888;
   cursor: pointer;
-  padding: 0;
-  margin-bottom: 2rem;
-  display: inline-flex;
-  align-items: center;
-  transition: all 0.2s ease;
-}
-
-.back-button:hover {
-  color: #111111;
-  transform: translateX(-4px);
+  margin-bottom: 1.5rem;
+  transition: 0.2s;
 }
 
 .main-title {
   font-family: 'Instrument Serif', serif;
   font-size: 4rem;
   color: #1243e3;
-  font-weight: 400;
   margin-bottom: 1rem;
-  line-height: 1.1;
 }
 
 .description {
   font-family: 'Inter', sans-serif;
   font-size: 1.1rem;
-  color: #555555;
+  color: #555;
   line-height: 1.6;
   margin-bottom: 3rem;
-  max-width: 700px;
+  max-width: 800px;
 }
 
-/* =========================================
-   GRIGLIA DATASET (CARD)
-   ========================================= */
-.dataset-grid {
+/* Grid */
+.datasets-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   gap: 1.5rem;
   margin-bottom: 2rem;
 }
 
 .dataset-card {
-  background: #ffffff;
+  background: #fff;
   border: 1px solid #e5e5e5;
-  border-radius: 8px;
-  padding: 1.5rem;
-  text-align: left;
+  border-radius: 16px;
+  padding: 2rem;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
   display: flex;
   flex-direction: column;
+  position: relative;
+  overflow: hidden;
 }
 
 .dataset-card:hover {
-  border-color: #111111;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.05);
-  transform: translateY(-2px);
+  transform: translateY(-5px);
+  border-color: #111;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.08);
 }
 
-/* Stato Attivo (Selezionato) */
 .dataset-card.is-selected {
-  border-color: #1243e3; /* Il tuo blu */
-  background: #f4f6fe; /* Sfondo azzurrino leggerissimo */
-  box-shadow: 0 0 0 1px #1243e3; /* Bordo più spesso visivamente */
+  border-color: #1243e3;
+  background: #f4f6fe;
+  box-shadow: 0 0 0 2px #1243e3;
 }
 
-.card-title {
-  font-family: 'Instrument Serif', serif;
-  font-size: 1.8rem;
-  color: #111111;
-  margin: 0 0 0.8rem 0;
-  font-weight: 400;
-}
-
-.card-desc {
+.card-badge {
   font-family: 'Inter', sans-serif;
-  font-size: 0.95rem;
-  color: #666666;
-  line-height: 1.5;
-  margin: 0 0 1.5rem 0;
-  flex: 1; /* Spinge i metadati in basso */
-}
-
-/* Qui usiamo JetBrains Mono! */
-.card-meta {
-  background: #faf9f8;
-  padding: 1rem;
+  font-size: 0.65rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  background: #f0f0f0;
+  padding: 4px 8px;
   border-radius: 4px;
-  border: 1px solid #f0f0f0;
+  width: fit-content;
+  margin-bottom: 1.5rem;
 }
 
-.dataset-card.is-selected .card-meta {
-  background: #ffffff; /* Fa risaltare il box interno se la card è azzurrina */
+.dataset-name {
+  font-family: 'Instrument Serif', serif;
+  font-size: 2rem;
+  color: #111;
+  margin: 0 0 0.5rem 0;
 }
 
-.meta-item {
-  display: flex;
-  justify-content: space-between;
-  margin-bottom: 0.5rem;
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 0.75rem;
+.dataset-file {
+  font-size: 0.8rem;
+  color: #888;
+  margin-bottom: 1rem;
 }
 
-.meta-item:last-child {
-  margin-bottom: 0;
+.dataset-desc {
+  font-size: 0.95rem;
+  color: #666;
+  line-height: 1.5;
+  margin-bottom: 2rem;
+  flex: 1;
 }
 
-.meta-label {
-  color: #888888;
-  letter-spacing: 0.5px;
-}
-
-.meta-value {
-  color: #111111;
+.selection-indicator {
+  font-family: 'Inter', sans-serif;
+  font-size: 0.8rem;
   font-weight: 600;
+  color: #999;
 }
 
-/* =========================================
-   BOTTOM NAV E BOTTONI
-   ========================================= */
+.is-selected .selection-indicator {
+  color: #1243e3;
+}
+
+/* Nav */
 .bottom-nav {
   position: fixed;
-  bottom: 0;
-  left: 0;
-  right: 0;
+  bottom: 0; left: 0; right: 0;
   height: 80px;
-  background: #ffffff;
+  background: #fff;
   border-top: 1px solid #e5e5e5;
   display: flex;
   align-items: center;
@@ -331,48 +293,26 @@ async function goNext() {
   z-index: 10;
 }
 
+.nav-right { display: flex; align-items: center; gap: 2rem; }
+.hint { font-size: 0.8rem; color: #999; }
+
 .nav-btn {
   font-family: 'Inter', sans-serif;
   font-weight: 600;
-  font-size: 0.95rem;
   padding: 0.8rem 1.5rem;
   border-radius: 4px;
   cursor: pointer;
-  transition: all 0.2s ease;
+  transition: 0.2s;
 }
 
-.ghost {
-  background: transparent;
-  color: #666666;
-  border: 1px solid transparent;
-}
-
-.ghost:hover {
-  color: #111111;
-}
-
-.primary {
-  background: #111111;
-  color: #ffffff;
-  border: 1px solid #111111;
-}
-
-.primary:hover:not(:disabled) {
-  background: #1243e3; /* Passa al tuo blu al click */
-  border-color: #1243e3;
-}
-
-.primary:disabled {
-  background: #e5e5e5;
-  color: #a0a0a0;
-  border-color: #e5e5e5;
-  cursor: not-allowed;
-}
+.ghost { background: transparent; color: #666; border: none; }
+.primary { background: #111; color: #fff; border: 1px solid #111; }
+.primary:not(:disabled):hover { background: #1243e3; border-color: #1243e3; }
+.primary:disabled { background: #e5e5e5; color: #a0a0a0; border-color: #e5e5e5; cursor: not-allowed; }
 
 .error-msg {
-  color: #d32f2f;
-  font-family: 'Inter', sans-serif;
-  font-size: 0.9rem;
+  color: #e63946;
   margin-top: 1rem;
+  font-size: 0.9rem;
 }
 </style>

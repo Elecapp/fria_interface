@@ -9,6 +9,9 @@ import json
 import uuid
 import csv
 
+import shutil
+from pydantic import BaseModel
+
 router = APIRouter(tags=["datasets"])
 
 #Save datasets in UPLOADS with following path: {dataset_type}__{cfg_id}__{safe_name}
@@ -80,6 +83,33 @@ def latest_columns():
 
     return {"columns": result["columns"]}
 
+class ExperimentDataset(BaseModel):
+    filename: str
+
+@router.post("/upload-experiment-dataset")
+def upload_experiment_dataset(payload: ExperimentDataset):
+    cfg_id = get_config_id()
+    filename = payload.filename
+
+    source_path = BASE_DIR / filename
+    if not source_path.exists():
+        raise HTTPException(status_code=404, detail=f"Dataset {filename} non trovato sul server. Controlla il percorso.")
+    
+    dataset_type ="X_test"
+
+    delete_existing_uploads(dataset_type)
+
+    dest_path = UPLOAD_DIR / f"{dataset_type}__{cfg_id}__{filename}"
+
+    shutil.copy2(source_path, dest_path)
+
+    return {
+        "message": "Dataset sperimentale caricato con successo!",
+        "filename": filename,
+        "dataset_type": dataset_type,
+        "path": str(dest_path.resolve())
+    }
+    
 
 
 

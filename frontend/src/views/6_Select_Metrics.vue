@@ -262,7 +262,7 @@ onMounted(buildUI);
 .main-title {
   font-family: 'Instrument Serif', serif;
   font-size: 4rem;
-  color: #1A365D;
+  color: #1243e3;
   margin-bottom: 1rem;
 }
 
