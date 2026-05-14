@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed } from "vue";
 import { useRouter } from "vue-router";
+import ProcessStepper from "../components/ProcessStepper.vue";
 
 const router = useRouter();
 const loading = ref(false);
@@ -91,6 +92,8 @@ function goBack() {
 
     <main class="hero-container">
       <div class="hero-content">
+        <ProcessStepper :current-step="1" />
+        
         <button class="back-button" @click="goBack">← Back</button>
 
         <h1 class="main-title">Select Dataset</h1>

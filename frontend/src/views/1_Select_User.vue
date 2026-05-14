@@ -1,6 +1,7 @@
 <script setup>
 import { ref } from "vue";
 import { useRouter } from "vue-router";
+import ProcessStepper from "../components/ProcessStepper.vue";
 
 const router = useRouter();
 const role = ref("");
@@ -26,6 +27,8 @@ function goToEvaluation(selectedRole) {
 
     <main class="hero-container">
       <div class="hero-content">
+        
+        <ProcessStepper :current-step="1" />
         
         <!-- Pulsante Indietro minimalista -->
         <button class="back-button" @click="goBack" aria-label="Go back">

@@ -51,8 +51,8 @@ async function start() {
           <div class="step-row">
             <div class="step-number">01</div>
             <div class="step-text">
-              <h3 class="step-title">Upload</h3>
-              <p class="step-desc">Upload your data and model.</p>
+              <h3 class="step-title">Data Selection</h3>
+              <p class="step-desc">Select the dataset for your evaluation.</p>
             </div>
           </div>
 
@@ -60,8 +60,8 @@ async function start() {
           <div class="step-row">
             <div class="step-number">02</div>
             <div class="step-text">
-              <h3 class="step-title">Select</h3>
-              <p class="step-desc">Select the sensitive features.</p>
+              <h3 class="step-title">Feature Mapping</h3>
+              <p class="step-desc">Map target variables and configure sensitive features.</p>
             </div>
           </div>
 
@@ -69,8 +69,8 @@ async function start() {
           <div class="step-row">
             <div class="step-number">03</div>
             <div class="step-text">
-              <h3 class="step-title">Choose</h3>
-              <p class="step-desc">Choose what to evaluate (privacy, non-discrimination).</p>
+              <h3 class="step-title">Metric Configuration</h3>
+              <p class="step-desc">Choose the fundamental rights domains and select metrics to evaluate.</p>
             </div>
           </div>
 
@@ -78,8 +78,8 @@ async function start() {
           <div class="step-row">
             <div class="step-number">04</div>
             <div class="step-text">
-              <h3 class="step-title">Interact</h3>
-              <p class="step-desc">View results, interact with the metrics.</p>
+              <h3 class="step-title">Algorithmic Evaluation</h3>
+              <p class="step-desc">Run the automated fairness and privacy analysis.</p>
             </div>
           </div>
 
@@ -87,8 +87,17 @@ async function start() {
           <div class="step-row">
             <div class="step-number">05</div>
             <div class="step-text">
-              <h3 class="step-title">Report</h3>
-              <p class="step-desc">Provide your judgment and export a final report.</p>
+              <h3 class="step-title">Results Dashboard</h3>
+              <p class="step-desc">Review algorithmic results, interact with metrics, and assign human weights.</p>
+            </div>
+          </div>
+
+          <!-- Step 6 -->
+          <div class="step-row">
+            <div class="step-number">06</div>
+            <div class="step-text">
+              <h3 class="step-title">Executive Report</h3>
+              <p class="step-desc">Provide your contextual justifications and export the final capability report.</p>
             </div>
           </div>
         </div>

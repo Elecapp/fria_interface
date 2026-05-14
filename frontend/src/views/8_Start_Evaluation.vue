@@ -1,6 +1,7 @@
 <script setup>
 import { ref } from "vue";
 import { useRouter } from "vue-router";
+import ProcessStepper from "../components/ProcessStepper.vue";
 
 const router = useRouter();
 
@@ -46,44 +47,48 @@ async function startEvaluation() {
     </header>
 
     <main class="hero-container">
-      <div class="hero-content centered-layout">
+      <div class="hero-content">
         
-        <button class="back-button" @click="goBack" :class="{ 'is-hidden': running }">
-          ← Back to Settings
-        </button>
+        <ProcessStepper :current-step="4" />
+        
+        <div class="centered-layout">
+          <button class="back-button" @click="goBack" :class="{ 'is-hidden': running }">
+            ← Back to Settings
+          </button>
 
-        <div class="launch-card">
-          <div v-if="!running" class="state-ready">
-            <div class="icon-circle">
-              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
-                <polyline points="22 4 12 14.01 9 11.01"></polyline>
-              </svg>
+          <div class="launch-card">
+            <div v-if="!running" class="state-ready">
+              <div class="icon-circle">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
+                  <polyline points="22 4 12 14.01 9 11.01"></polyline>
+                </svg>
+              </div>
+              
+              <h1 class="main-title">Ready to Evaluate</h1>
+              
+              <p class="description">
+                Your configuration is complete. The system will now analyze your dataset, calculate the selected metrics, and compile the final capability report.
+              </p>
+
+              <button class="launch-btn" @click="startEvaluation">
+                Start Analysis
+              </button>
+              
+              <div v-if="error" class="error-banner">{{ error }}</div>
             </div>
-            
-            <h1 class="main-title">Ready to Evaluate</h1>
-            
-            <p class="description">
-              Your configuration is complete. The system will now analyze your dataset, calculate the selected metrics, and compile the final capability report.
-            </p>
 
-            <button class="launch-btn" @click="startEvaluation">
-              Start Analysis
-            </button>
-            
-            <div v-if="error" class="error-banner">{{ error }}</div>
-          </div>
-
-          <div v-else class="state-running">
-            <div class="spinner-wrap">
-              <div class="modern-spinner"></div>
+            <div v-else class="state-running">
+              <div class="spinner-wrap">
+                <div class="modern-spinner"></div>
+              </div>
+              
+              <h2 class="running-title">Processing Data...</h2>
+              
+              <p class="running-desc">
+                Please wait while the evaluator calculates metrics across the specified domains. This might take a few moments depending on the dataset size.
+              </p>
             </div>
-            
-            <h2 class="running-title">Processing Data...</h2>
-            
-            <p class="running-desc">
-              Please wait while the evaluator calculates metrics across the specified domains. This might take a few moments depending on the dataset size.
-            </p>
           </div>
         </div>
 
@@ -119,16 +124,23 @@ async function startEvaluation() {
   flex: 1;
   display: flex;
   justify-content: center;
-  align-items: center;
-  padding: 2rem;
+  padding-top: 5vh;
+}
+
+.hero-content {
+  max-width: 1000px;
+  width: 100%;
+  padding: 0 2rem;
 }
 
 .centered-layout {
   max-width: 600px;
   width: 100%;
+  margin: 0 auto;
   display: flex;
   flex-direction: column;
   align-items: center;
+  margin-top: 2rem;
 }
 
 .back-button {

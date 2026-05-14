@@ -1,6 +1,7 @@
 <script setup>
 import { ref, onMounted } from "vue";
 import { useRouter } from "vue-router";
+import ProcessStepper from "../components/ProcessStepper.vue";
 
 const router = useRouter();
 
@@ -224,6 +225,8 @@ async function goNext() {
 
     <main class="hero-container">
       <div class="hero-content">
+        <ProcessStepper :current-step="2" />
+        
         <button class="back-button" @click="goBack">← Back</button>
 
         <h1 class="main-title">Data Mapping & Processing</h1>

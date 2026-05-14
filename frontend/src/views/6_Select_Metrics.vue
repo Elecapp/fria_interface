@@ -1,6 +1,7 @@
 <script setup>
 import { ref, computed, onMounted } from "vue";
 import { useRouter } from "vue-router";
+import ProcessStepper from "../components/ProcessStepper.vue";
 
 const router = useRouter();
 const error = ref("");
@@ -148,6 +149,7 @@ onMounted(buildUI);
 
     <main class="hero-container">
       <div class="hero-content">
+        <ProcessStepper :current-step="3" />
         <button class="back-button" @click="goBack">← Back</button>
 
         <h1 class="main-title">Metric Selection</h1>

@@ -1,6 +1,7 @@
 <script setup>
 import { onMounted, ref, computed } from "vue";
 import { useRouter } from "vue-router";
+import ProcessStepper from "../components/ProcessStepper.vue";
 
 //for first report building
 import {
@@ -240,6 +241,8 @@ onMounted(fetchData);
 
     <main class="hero-container">
       <div class="hero-content">
+        
+        <ProcessStepper :current-step="5" />
         
         <h1 class="main-title">Evaluation Results</h1>
         
