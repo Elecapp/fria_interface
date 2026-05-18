@@ -1,9 +1,9 @@
 {
   "conditional_use_accuracy_equality": {
-    "gender": {
+    "age_group": {
       "metric": "Conditional Use Accuracy Equality",
       "status": "error",
-      "sensitive_feature": "gender",
+      "sensitive_feature": "age_group",
       "message": "need at least one array to stack"
     }
   }

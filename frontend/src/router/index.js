@@ -28,7 +28,10 @@ const router = createRouter({
     { path: "/rm2", component: RunModel },
     { path: "/r", component: ReviewResults },
     { path: "/metric/:group/:metric", name: "MetricResults", component: MetricResults },
-    { path: "/report/:runId", name: "Report", component: () => import("../views/11_Generate_Report.vue"),} //map to the different pages
+    { path: "/report/:runId", name: "Report", component: () => import("../views/11_Generate_Report.vue")},
+    { path: '/test-surveys', name: 'TestSurveys', component: () => import('../views/test/SurveyManagerView.vue'),
+      meta: { title: 'User Testing Questionnaires' }
+    } //map to the different pages
   ],
 });
 
