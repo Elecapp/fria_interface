@@ -9,22 +9,37 @@ const props = defineProps({
   pageNumber: { type: Number, default: 1 },
 });
 
-const node = computed(() => props.node ?? {});
-const context = computed(() => node.value?.context_report ?? {});
+const dataNode = computed(() => props.node ?? {});
+const context = computed(() => dataNode.value?.context_report ?? {});
+
+// 1. Likelihood (Valore calcolato dall'algoritmo)
+const likelihoodScore = computed(() => {
+  const v = context.value?.final_score ?? dataNode.value?.final_score;
+  if (v !== undefined && v !== null) {
+      const num = Number(v);
+      return num <= 1 ? (num * 10).toFixed(2) : num.toFixed(2);
+  }
+  return "N/A";
+});
+
+// 2. Gravity e Reversibility
+const gravity = computed(() => dataNode.value?.gravity_report ?? "0");
+const reversibility = computed(() => dataNode.value?.reversibility_report ? "YES" : "NO");
+
+// 3. Final Risk Score (Il calcolo FRIA totale)
 const total_score = computed(() => {
-  const v = props.node?.total_score_report;
+  const v = dataNode.value?.total_score_report;
   return v !== undefined && v !== null ? Number(v).toFixed(2) : "-";
 });
-const gravity = computed(() => node.value?.gravity_report ?? "0");
-const reversibility = computed(() => node.value?.reversibility_report ? "YES" : "NO");
-const justification = computed(() => node.value?.user_justification_report ?? "");
+
+const justification = computed(() => dataNode.value?.user_justification_report ?? "");
 
 const metricDescription = computed(() => 
-  node.value?.metric_description_report || "Distribution analysis and group-level metric evaluation."
+  dataNode.value?.metric_description_report || "Distribution analysis and group-level metric evaluation."
 );
 
 const rightGroup = computed(() =>
-  node.value?.metric_right_report || node.value?.group_report || "Not available"
+  dataNode.value?.metric_right_report || dataNode.value?.group_report || "Not available"
 );
 
 function prettifyLabel(str) {
@@ -54,16 +69,17 @@ const contextRows = computed(() => {
 });
 
 const totalScoreLabel = computed(() => {
-  const v = Number(total_score.value);
-  if (v <= 2) return "Critical Compliance";
-  if (v <= 4) return "Low-Medium Compliance";
-  if (v <= 6) return "Moderate Compliance";
-  if (v <= 8) return "Good Compliance";
-  return "Optimal Compliance";
+  const v = Number(likelihoodScore.value);
+  if (isNaN(v)) return "Unknown";
+  if (v <= 2) return "Critical";
+  if (v <= 4) return "Low-Medium";
+  if (v <= 6) return "Moderate";
+  if (v <= 8) return "Good";
+  return "Optimal";
 });
 
 const needleRotation = computed(() => {
-  const v = Math.max(0, Math.min(10, Number(total_score.value)));
+  const v = Math.max(0, Math.min(10, Number(likelihoodScore.value) || 0));
   return (v / 10) * 180 - 90;
 });
 
@@ -133,7 +149,7 @@ const gaugeTicks = computed(() => {
                 <div class="needle" :style="{ transform: `translateX(-50%) rotate(${needleRotation}deg)` }"></div>
                 <div class="needle-center"></div>
                 <div class="gauge-readout">
-                  <div class="gauge-number">{{ total_score }}</div>
+                  <div class="gauge-number">{{ likelihoodScore }}</div>
                   <div class="gauge-text">{{ totalScoreLabel }}</div>
                 </div>
                 <span v-for="tick in gaugeTicks" :key="tick.value" class="tick" :style="tick.style">{{ tick.value }}</span>
@@ -141,18 +157,30 @@ const gaugeTicks = computed(() => {
             </div>
           </section>
 
-          <section class="info-section scores-row">
+          <section class="info-section scores-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 5mm;">
+             
              <div class="score-pill">
-               <span class="p-label">Weight</span>
-               <span class="p-value">{{ weight }}</span>
+               <span class="p-label">Likelihood (0-10)</span>
+               <span class="p-value">{{ likelihoodScore }}</span>
              </div>
+
+             <div class="score-pill">
+               <span class="p-label">Gravity (0-4)</span>
+               <span class="p-value">{{ gravity }}</span>
+             </div>
+             
+             <div class="score-pill" :class="{ 'red-pill': reversibility === 'NO', 'green-pill': reversibility === 'YES' }">
+               <span class="p-label">Reversibility</span>
+               <span class="p-value">{{ reversibility }}</span>
+             </div>
+
              <div class="score-pill blue">
-               <span class="p-label">Total Score</span>
+               <span class="p-label">FINAL RISK SCORE</span>
                <span class="p-value">{{ total_score }}</span>
              </div>
           </section>
 
-          <section v-if="justification && justification !== 'No justification provided.'" class="justification-box">
+          <section v-if="justification && justification !== '-'" class="justification-box">
             <h3 class="section-label">Contextual Justification</h3>
             <p class="justification-text">"{{ justification }}"</p>
           </section>
@@ -208,12 +236,16 @@ const gaugeTicks = computed(() => {
 .s-value { font-weight: 700; color: #1e293b; }
 .mono { font-family: 'JetBrains Mono', monospace; }
 
-/* Score Pills */
-.scores-row { display: flex; gap: 10px; margin-top: 5mm; }
-.score-pill { flex: 1; background: #f8fafc; padding: 12px; border-radius: 8px; border: 1px solid #e2e8f0; display: flex; flex-direction: column; align-items: center; }
+/* Score Pills Modificate per Reversibility */
+.score-pill { flex: 1; background: #f8fafc; padding: 12px 6px; border-radius: 8px; border: 1px solid #e2e8f0; display: flex; flex-direction: column; align-items: center; }
 .score-pill.blue { background: #eff6ff; border-color: #dbeafe; }
+.score-pill.red-pill { background: #fef2f2; border-color: #fecaca; }
+.score-pill.red-pill .p-value { color: #dc2626; }
+.score-pill.green-pill { background: #f0fdf4; border-color: #bbf7d0; }
+.score-pill.green-pill .p-value { color: #16a34a; }
+
 .p-label { font-size: 9px; font-weight: 800; text-transform: uppercase; color: #64748b; }
-.p-value { font-size: 20px; font-weight: 800; color: #1e293b; }
+.p-value { font-size: 18px; font-weight: 800; color: #1e293b; margin-top: 4px;}
 .score-pill.blue .p-value { color: #1d4ed8; }
 
 /* Justification */

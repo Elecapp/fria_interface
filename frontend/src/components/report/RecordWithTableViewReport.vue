@@ -9,22 +9,47 @@ const props = defineProps({
   pageNumber: { type: Number, default: 1 },
 });
 
-const node = computed(() => props.node ?? {});
-const context = computed(() => node.value?.context_report ?? {});
+// IL TRUCCO: Estrarre il nodo corretto a seconda se è globale o no
+const dataNode = computed(() => {
+  const root = props.node ?? {};
+  if (root["(global)"] && typeof root["(global)"] === "object") {
+    return root["(global)"];
+  }
+  return root;
+});
+
+const context = computed(() => dataNode.value?.context_report ?? {});
+
+// 1. Likelihood (Il valore originale calcolato dall'algoritmo 0-10)
+const likelihoodScore = computed(() => {
+  // Prova a estrarlo da dove capita (il backend lo salva in posti diversi)
+  const v = context.value?.final_score ?? dataNode.value?.value ?? dataNode.value?.final_score;
+  // Se era in base 1 (0.0-1.0), moltiplichiamo per 10 per coerenza visiva
+  if (v !== undefined && v !== null) {
+      const num = Number(v);
+      return num <= 1 ? (num * 10).toFixed(2) : num.toFixed(2);
+  }
+  return "N/A";
+});
+
+// 2. Gravity (0-4) e Reversibility
+const gravity = computed(() => dataNode.value?.gravity_report ?? "0");
+const reversibility = computed(() => dataNode.value?.reversibility_report ? "YES" : "NO");
+
+// 3. Final Risk Score (Il totale calcolato FRIA)
 const total_score = computed(() => {
-  const v = props.node?.total_score_report;
+  const v = dataNode.value?.total_score_report;
   return v !== undefined && v !== null ? Number(v).toFixed(2) : "-";
 });
-const gravity = computed(() => node.value?.gravity_report ?? "0");
-const reversibility = computed(() => node.value?.reversibility_report ? "YES" : "NO");
-const justification = computed(() => node.value?.user_justification_report ?? "");
+
+const justification = computed(() => dataNode.value?.user_justification_report ?? "");
 
 const metricDescription = computed(() => 
-  node.value?.metric_description_report || "Record-based evaluation with aggregate metric indicators."
+  dataNode.value?.metric_description_report || "Detailed analysis of the metric based on dataset parameters."
 );
 
 const rightGroup = computed(() =>
-  node.value?.metric_right_report || node.value?.group_report || "Not available"
+  dataNode.value?.metric_right_report || dataNode.value?.group_report || "Not available"
 );
 
 function prettifyLabel(str) {
@@ -40,7 +65,7 @@ function formatValue(v) {
 }
 
 const title = computed(() => {
-  return context.value?.metric || prettifyLabel(props.metricKey) || "Metric Record";
+  return context.value?.metric || prettifyLabel(props.metricKey) || "Metric Analysis";
 });
 
 const contextRows = computed(() => {
@@ -52,17 +77,20 @@ const contextRows = computed(() => {
     }));
 });
 
+// ETICHETTE DEL GAUGE (Usa Likelihood, non il total_score!)
 const totalScoreLabel = computed(() => {
-  const v = Number(total_score.value);
-  if (v <= 2) return "Critical Compliance";
-  if (v <= 4) return "Low-Medium Compliance";
-  if (v <= 6) return "Moderate Compliance";
-  if (v <= 8) return "Good Compliance";
-  return "Optimal Compliance";
+  const v = Number(likelihoodScore.value);
+  if (isNaN(v)) return "Unknown";
+  if (v <= 2) return "Critical";
+  if (v <= 4) return "Low-Medium";
+  if (v <= 6) return "Moderate";
+  if (v <= 8) return "Good";
+  return "Optimal";
 });
 
+// LANCETTA DEL GAUGE (Usa Likelihood!)
 const needleRotation = computed(() => {
-  const v = Math.max(0, Math.min(10, Number(total_score.value)));
+  const v = Math.max(0, Math.min(10, Number(likelihoodScore.value) || 0));
   return (v / 10) * 180 - 90;
 });
 
@@ -132,7 +160,7 @@ const gaugeTicks = computed(() => {
                 <div class="needle" :style="{ transform: `translateX(-50%) rotate(${needleRotation}deg)` }"></div>
                 <div class="needle-center"></div>
                 <div class="gauge-readout">
-                  <div class="gauge-number">{{ total_score }}</div>
+                  <div class="gauge-number">{{ likelihoodScore }}</div>
                   <div class="gauge-text">{{ totalScoreLabel }}</div>
                 </div>
                 <span v-for="tick in gaugeTicks" :key="tick.value" class="tick" :style="tick.style">{{ tick.value }}</span>
@@ -140,16 +168,28 @@ const gaugeTicks = computed(() => {
             </div>
           </section>
 
-          <div class="scores-container">
-            <div class="score-pill">
-              <span class="p-label">User Weight</span>
-              <span class="p-value">{{ weight }}</span>
-            </div>
-            <div class="score-pill blue">
-              <span class="p-label">Final Score</span>
-              <span class="p-value">{{ total_score }}</span>
-            </div>
-          </div>
+          <section class="info-section scores-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 5mm;">
+             
+             <div class="score-pill">
+               <span class="p-label">Likelihood (0-10)</span>
+               <span class="p-value">{{ likelihoodScore }}</span>
+             </div>
+
+             <div class="score-pill">
+               <span class="p-label">Gravity Impact (0-4)</span>
+               <span class="p-value">{{ gravity }}</span>
+             </div>
+             
+             <div class="score-pill" :class="{ 'red-pill': reversibility === 'NO', 'green-pill': reversibility === 'YES' }">
+               <span class="p-label">Reversibility</span>
+               <span class="p-value">{{ reversibility }}</span>
+             </div>
+
+             <div class="score-pill blue">
+               <span class="p-label">FINAL RISK SCORE</span>
+               <span class="p-value">{{ total_score }}</span>
+             </div>
+          </section>
 
           <section v-if="justification && justification !== 'No justification provided.'" class="justification-box">
             <h3 class="section-label">Justification</h3>

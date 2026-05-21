@@ -1,92 +1,112 @@
 {
-  "conditional_statistical_parity": {
-    "gender": {
-      "metric": "Conditional Statistical Parity",
+  "new_metric": {
+    "(global)": {
       "status": "success",
-      "conditional_variable": "esito_mutuo",
-      "sensitive_feature": "gender",
-      "conditions": {
-        "approvato": {
-          "F": 0.0,
-          "M": 0.0,
-          "raw_difference": 0.0,
-          "normalized_score": 1.0,
-          "weight": 0.63,
-          "total_samples": 63
-        },
-        "rifiutato": {
-          "F": 0.0,
-          "M": 0.0,
-          "raw_difference": 0.0,
-          "normalized_score": 1.0,
-          "weight": 0.37,
-          "total_samples": 37
-        }
-      },
-      "disparity_summary": {
-        "raw_average": 0.0,
-        "raw_max": 0.0,
-        "raw_min": 0.0,
-        "normalized_average": 1.0,
-        "normalized_max": 1.0,
-        "normalized_min": 1.0,
-        "processed_conditions": 2,
-        "total_samples": 100,
-        "final_score": 10.0
-      }
-    },
-    "eta_intervallo": {
-      "metric": "Conditional Statistical Parity",
-      "status": "success",
-      "conditional_variable": "esito_mutuo",
-      "sensitive_feature": "eta_intervallo",
-      "conditions": {
-        "approvato": {
-          "18-30": 0.0,
-          "31-45": 0.0,
-          "46-60": 0.0,
-          "61+": 0.0,
-          "raw_difference": 0.0,
-          "normalized_score": 1.0,
-          "weight": 0.63,
-          "total_samples": 63
-        },
-        "rifiutato": {
-          "18-30": 0.0,
-          "31-45": 0.0,
-          "46-60": 0.0,
-          "61+": 0.0,
-          "raw_difference": 0.0,
-          "normalized_score": 1.0,
-          "weight": 0.37,
-          "total_samples": 37
-        }
-      },
-      "disparity_summary": {
-        "raw_average": 0.0,
-        "raw_max": 0.0,
-        "raw_min": 0.0,
-        "normalized_average": 1.0,
-        "normalized_max": 1.0,
-        "normalized_min": 1.0,
-        "processed_conditions": 2,
-        "total_samples": 100,
-        "final_score": 10.0
-      }
+      "metric": "New Metric",
+      "used_column": "reddito_annuo_eur",
+      "mean": 39990.0,
+      "median": 41750.0,
+      "ratio_rule": "median/mean",
+      "computed": 1.0440110027506877,
+      "threshold": 3.0,
+      "result": 1.0440110027506877,
+      "final_score": 10.440110027506877
     }
   },
-  "conditional_use_accuracy_equality": {
+  "demographic_parity": {
     "gender": {
-      "metric": "Conditional Use Accuracy Equality",
-      "status": "error",
+      "metric": "Demographic Parity",
+      "status": "success",
       "sensitive_feature": "gender",
-      "message": "need at least one array to stack"
+      "selection_rate_by_group": {
+        "F": 0.43478260869565216,
+        "M": 0.3148148148148148
+      },
+      "difference": 0.11996779388083734,
+      "final_score": 8.800322061191627
     },
     "eta_intervallo": {
-      "metric": "Conditional Use Accuracy Equality",
-      "status": "error",
+      "metric": "Demographic Parity",
+      "status": "success",
       "sensitive_feature": "eta_intervallo",
-      "message": "need at least one array to stack"
+      "selection_rate_by_group": {
+        "18-30": 0.5909090909090909,
+        "31-45": 0.40625,
+        "46-60": 0.1935483870967742,
+        "61+": 0.3333333333333333
+      },
+      "difference": 0.39736070381231675,
+      "final_score": 6.026392961876832
+    }
+  },
+  "disparate_impact": {
+    "gender": {
+      "metric": "Disparate Impact",
+      "status": "success",
+      "sensitive_feature": "gender",
+      "selection_rates": {
+        "F": 0.0,
+        "M": 0.0
+      },
+      "disparate_impact": NaN,
+      "final_score": NaN
+    },
+    "eta_intervallo": {
+      "metric": "Disparate Impact",
+      "status": "success",
+      "sensitive_feature": "eta_intervallo",
+      "selection_rates": {
+        "18-30": 0.0,
+        "31-45": 0.0,
+        "46-60": 0.0,
+        "61+": 0.0
+      },
+      "disparate_impact": NaN,
+      "final_score": NaN
+    }
+  },
+  "equalized_odds_difference": {
+    "gender": {
+      "metric": "Equalized Odds Difference",
+      "status": "success",
+      "sensitive_feature": "gender",
+      "rates_by_group": {
+        "F": {
+          "FPR": 0.0,
+          "TPR": 1.0
+        },
+        "M": {
+          "FPR": 0.0,
+          "TPR": 1.0
+        }
+      },
+      "difference": 0.0,
+      "final_score": 10.0
+    },
+    "eta_intervallo": {
+      "metric": "Equalized Odds Difference",
+      "status": "success",
+      "sensitive_feature": "eta_intervallo",
+      "rates_by_group": {
+        "18-30": {
+          "FPR": 0.0,
+          "TPR": 1.0
+        },
+        "31-45": {
+          "FPR": 0.0,
+          "TPR": 1.0
+        },
+        "46-60": {
+          "FPR": 0.0,
+          "TPR": 1.0
+        },
+        "61+": {
+          "FPR": 0.0,
+          "TPR": 1.0
+        }
+      },
+      "difference": 0.0,
+      "final_score": 10.0
     }
   }
 }

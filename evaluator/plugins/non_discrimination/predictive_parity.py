@@ -1,7 +1,7 @@
 from sklearn.metrics import precision_score
 from fairlearn.metrics import MetricFrame
 from core.plugin_registry import PluginSpec, ParamSpec
-
+from sklearn.preprocessing import LabelEncoder  # <-- Importazione vitale aggiunta
 
 class PredictiveParity:
     @classmethod
@@ -39,10 +39,20 @@ class PredictiveParity:
 
             sensitive_column = X_test[feature]
 
+            # --- INIZIO PULIZIA DATI ---
+            le = LabelEncoder()
+            y_true_str = y_true.astype(str)
+            y_pred_str = y_pred.astype(str)
+            
+            le.fit(y_true_str)
+            y_true_clean = le.transform(y_true_str)
+            y_pred_clean = le.transform(y_pred_str)
+            # --- FINE PULIZIA DATI ---
+
             metric_frame = MetricFrame(
                 metrics=precision_score,
-                y_true=y_true,
-                y_pred=y_pred,
+                y_true=y_true_clean,  # <-- Usiamo i dati puliti (0 e 1)
+                y_pred=y_pred_clean,  # <-- Usiamo i dati puliti (0 e 1)
                 sensitive_features=sensitive_column,
             )
 
@@ -56,7 +66,7 @@ class PredictiveParity:
 
             results[feature] = {
                 #Summary metrics
-                "metric": self.get_spec().name, #ADDED
+                "metric": self.get_spec().name, 
                 "status": "success",
                 "sensitive_feature": feature,
 
@@ -64,7 +74,7 @@ class PredictiveParity:
                 "precision_by_group": precision_by_group,
                 "precision_ratio": precision_ratio,
                 "difference": difference,
-                "final_score": (10*precision_ratio),  
+                "final_score": (10 * precision_ratio),  
             }
 
         return results

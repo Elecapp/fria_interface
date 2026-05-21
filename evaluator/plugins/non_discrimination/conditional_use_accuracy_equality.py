@@ -1,5 +1,6 @@
 from core.plugin_registry import PluginSpec, ParamSpec
 from sklearn.metrics import accuracy_score
+from sklearn.preprocessing import LabelEncoder
 from fairlearn.metrics import MetricFrame
 import pandas as pd
 
@@ -7,7 +8,7 @@ import pandas as pd
 class ConditionalUseAccuracyEquality:
     @classmethod
     def get_spec(cls):
-        return PluginSpec( #Plugin specs
+        return PluginSpec(
             id="conditional_use_accuracy_equality",
             name="Conditional Use Accuracy Equality",
             right="Non_Discrimination",
@@ -15,7 +16,7 @@ class ConditionalUseAccuracyEquality:
             interpretation="Values near 0 reflects equal reliability of model decisions.",
             requires=["X_test", "y_true", "y_pred"],  
             params=[
-                ParamSpec( #Parameters specs
+                ParamSpec(
                     key="sensitive_features",
                     type="list[string]",
                     required=True,
@@ -40,10 +41,33 @@ class ConditionalUseAccuracyEquality:
         y_pred = pd.Series(y_pred).reset_index(drop=True)
         X_test = X_test.reset_index(drop=True)
 
+        # --- INIZIO PULIZIA DATI ---
+        le = LabelEncoder()
+        y_true_str = y_true.astype(str)
+        y_pred_str = y_pred.astype(str)
+
+        le.fit(y_true_str)
+        # Trasformiamo i target testuali in 0 e 1 per poter fare il filtro matematico
+        y_true_clean = pd.Series(le.transform(y_true_str))
+        y_pred_clean = pd.Series(le.transform(y_pred_str))
+        # --- FINE PULIZIA DATI ---
+
         # Keep only positive predictions (ŷ = 1)
-        positive_mask = y_pred == 1
-        y_true_pos = y_true[positive_mask]
-        y_pred_pos = y_pred[positive_mask]
+        positive_mask = y_pred_clean == 1
+        
+        # Salvavita: se non ci sono predizioni positive, evitiamo di far schiantare Fairlearn
+        if not positive_mask.any():
+            for feature in sensitive_features:
+                results[feature] = {
+                    "metric": self.get_spec().name,
+                    "status": "error",
+                    "sensitive_feature": feature,
+                    "message": "No positive predictions found to compute conditional accuracy.",
+                }
+            return results
+
+        y_true_pos = y_true_clean[positive_mask]
+        y_pred_pos = y_pred_clean[positive_mask]
         X_pos = X_test.loc[positive_mask]
 
         for feature in sensitive_features:

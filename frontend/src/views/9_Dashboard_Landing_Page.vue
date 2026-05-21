@@ -75,6 +75,27 @@ async function saveDomainReversibility(groupName) {
   }
 }
 
+
+async function resetRun() {
+  if (!confirm("Sei sicuro? Questa azione eliminerà tutti i pesi e i report salvati. Ripartirai da zero.")) return;
+  
+  try {
+    const res = await fetch("http://127.0.0.1:8000/results/purge_run", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ run_id: runId.value })
+    });
+    
+    if (res.ok) {
+      alert("Cache pulita. La dashboard si ricaricherà.");
+      window.location.reload(); 
+    } else {
+      throw new Error("Il server ha risposto con un errore");
+    }
+  } catch (e) {
+    alert("Errore durante il reset: " + e.message);
+  }
+}
 // Generate report
 async function generatePdf() {
   pdfError.value = "";
@@ -282,6 +303,9 @@ onMounted(fetchData);
           <span class="step"><span class="num">2</span> Assign weights (1-5)</span>
           <span class="sep">→</span>
           <span class="step"><span class="num">3</span> Generate final PDF</span>
+          <button class="nav-btn ghost danger" @click="resetRun" title="Reset Session Data">
+  Reset Session
+</button>
         </div>
 
         <div v-if="loadingMetrics" class="state-msg">Loading your dashboard...</div>

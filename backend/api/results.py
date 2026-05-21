@@ -2,7 +2,7 @@ from backend.services.config_services import attach_uploads_to_config, latest_co
 from backend.services.utils.detect_metric_schema import detect_all_result_schemas
 from backend.core.settings import BASE_DIR, STORAGE_DIR, UPLOAD_DIR, CONFIG_DIR, RESULTS_DIR, RUN_DIR, REGISTRY_DIR
 from fastapi import APIRouter, HTTPException, Query, Body, UploadFile, File, Form
-from backend.services.result_services import render_report_to_pdf, load_plugin_registry, compute_total_score
+from backend.services.result_services import render_report_to_pdf, load_plugin_registry
 from fastapi.responses import JSONResponse, FileResponse
 from backend.schemas.config import ConfigIn
 from pydantic import BaseModel, Field
@@ -16,6 +16,37 @@ import uuid
 import json
 import os
 import re
+import shutil
+import math
+
+def clean_nans(obj):
+    """Esplora i dati e converte tutti i NaN o Infinity in None (null in JSON)"""
+    if isinstance(obj, dict):
+        return {k: clean_nans(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [clean_nans(v) for v in obj]
+    elif isinstance(obj, float):
+        if math.isnan(obj) or math.isinf(obj):
+            return None
+    return obj
+
+def calculate_fria_risk(likelihood, gravity, is_reversible):
+    """
+    Calcola il rischio finale.
+    Likelihood (0-10) * Gravity (0-4).
+    Se il danno è IRREVERSIBILE (False), il rischio aumenta del 50%.
+    """
+    if likelihood is None: return None
+    try: l_val = float(likelihood)
+    except (ValueError, TypeError): return None
+    
+    g_val = float(gravity) if gravity is not None else 0.0
+    
+    risk = l_val * g_val
+    if is_reversible is False:
+        risk = risk * 1.5 
+        
+    return round(risk, 3)
 
 logger = logging.getLogger("uvicorn.error")
 router = APIRouter(tags=["results"])
@@ -60,6 +91,8 @@ def values_to_display():
 
     if res_path.exists():
         results = json.loads(res_path.read_text(encoding="utf-8"))  
+        results = clean_nans(results)
+        
         return {
             "run_id": run_id, 
             "results": results, 
@@ -107,11 +140,14 @@ class WeightsSavePayload(BaseModel):
     # NUOVI CAMPI EXECUTIVE
     gravity: Optional[int] = 0
     reversibility: Optional[bool] = False
+    reversibilityByLabel: Dict[str, bool] = Field(default_factory=dict)
     executiveData: Optional[Dict[str, Any]] = Field(default_factory=dict)
 
 #POST: save weights, justification and report content
 @router.post("/results/save_weights")
 def save_weights(payload: WeightsSavePayload):
+    from backend.services.result_services import load_plugin_registry
+    
     run_id = payload.run_id
     group = payload.group
     metric = payload.metric
@@ -152,8 +188,9 @@ def save_weights(payload: WeightsSavePayload):
             else:
                 metric_obj["(global)"] = {}
 
+        # --- Calcolo FRIA ---
         metric_value = (payload.context_report or {}).get("final_score")
-        final_score = compute_total_score(metric_value, w)
+        final_score = calculate_fria_risk(metric_value, payload.gravity, payload.reversibility)
         
         if final_score is not None:
             metric_obj["(global)"]["total_score_report"] = final_score
@@ -188,13 +225,14 @@ def save_weights(payload: WeightsSavePayload):
         w = payload.user_weight
         just = (payload.user_justification or "").strip()
 
+        # --- Calcolo FRIA ---
         metric_value = (payload.context_report or {}).get("final_score")
-        final_score = compute_total_score(metric_value, w)
+        final_score = calculate_fria_risk(metric_value, payload.gravity, payload.reversibility)
         
         if final_score is not None:
             metric_obj["total_score_report"] = final_score
 
-        metric_obj["metric_report"] = metric
+        metric_report = metric
         if w is not None: 
             metric_obj["user_weight_report"] = w
         if group:
@@ -224,6 +262,7 @@ def save_weights(payload: WeightsSavePayload):
         for feature, w_raw in payload.weights.items():
             w = w_raw
             just = (payload.justifications.get(feature) or "").strip()
+            feat_rev = payload.reversibilityByLabel.get(feature, payload.reversibility)
 
             if feature not in metric_obj or not isinstance(metric_obj[feature], dict):
                 if isinstance(metric_obj.get(feature), (int, float)):
@@ -231,17 +270,22 @@ def save_weights(payload: WeightsSavePayload):
                 else:
                     metric_obj[feature] = {}
 
+            # --- Calcolo FRIA ---
             metric_value = ((payload.summary_report or {}).get(feature, {}).get("Final Score")
                             or (payload.context_report or {}).get(feature, {}).get("Final Score")
                             or ((payload.context_report or {}).get(feature, {}).get("value", 0)*10)
+                            or ((payload.context_report or {}).get("final_score")) 
             )
 
-            final_score = compute_total_score(metric_value, w)
+            final_score = calculate_fria_risk(metric_value, w, feat_rev)
             if final_score is not None:
                 metric_obj[feature]["total_score_report"] = final_score
 
             metric_obj[feature]["metric_report"] = metric
             metric_obj[feature]["user_weight_report"] = w
+            metric_obj[feature]["gravity_report"] = w
+            metric_obj[feature]["reversibility_report"] = feat_rev
+            
             if group:
                 metric_obj[feature]["group_report"] = group
             if metric_description:
@@ -265,11 +309,6 @@ def save_weights(payload: WeightsSavePayload):
                     metric_obj[feature]["summary_report"] = payload.summary_report[feature]
                 else:
                     metric_obj[feature]["summary_report"] = payload.summary_report
-
-            # CAMPI EXECUTIVE FEATURE-LEVEL
-            exec_info = payload.executiveData.get(feature, {})
-            metric_obj[feature]["gravity_report"] = exec_info.get("gravity", payload.gravity)
-            metric_obj[feature]["reversibility_report"] = exec_info.get("reversibility", payload.reversibility)
 
         report_path.write_text(json.dumps(report_raw, ensure_ascii=False, indent=2), encoding="utf-8")
         return {"ok": True, "mode": "feature", "run_id": run_id}
@@ -307,7 +346,6 @@ def save_domain_config(payload: DomainConfigPayload):
 
 
 #GET: take the _report.json to generate the final PDF
-#GET: take the _report.json to generate the final PDF
 @router.get("/results/{run_id}_report")
 def get_report_json(run_id: str):
     report_path = RESULTS_DIR / f"{run_id}_report.json"
@@ -320,27 +358,21 @@ def get_report_json(run_id: str):
 
     report_data = json.loads(report_path.read_text(encoding="utf-8"))
     
-    # --- LA MAGIA DI INIEZIONE DATI ---
-    # Prendiamo le configurazioni dei domini e le iniettiamo in ogni metrica
     domain_configs = report_data.get("domain_configs", {})
     results = report_data.get("results", {})
 
     for metric_key, metric_data in results.items():
-        # Cerchiamo il gruppo (dominio) della metrica. 
-        # Di solito è nel campo 'group_report'
         group = metric_data.get("group_report")
         if not group and "(global)" in metric_data:
             group = metric_data["(global)"].get("group_report")
             
-        # Se abbiamo trovato il dominio, cerchiamo se ha una reversibilità salvata
         if group and group in domain_configs:
             rev = domain_configs[group].get("reversibility", False)
-            # Iniettiamo il dato nella metrica in modo che il frontend/PDF lo veda!
             metric_data["reversibility_report"] = rev
             if "(global)" in metric_data:
                 metric_data["(global)"]["reversibility_report"] = rev
 
-    return report_data
+    return clean_nans(report_data)
 
 #PDF GENERATION
 class GeneratePDFRequest(BaseModel):
@@ -371,3 +403,26 @@ def generate_pdf(req: GeneratePDFRequest):
         media_type="application/pdf",
         filename=f"final_evaluation_report_{run_id}.pdf",
     )
+
+@router.post("/results/purge_run")
+def purge_run(payload: Dict[str, Any] = Body(...)):
+    run_id = payload.get("run_id")
+    if not run_id:
+        raise HTTPException(status_code=400, detail="run_id is required")
+
+    files_to_delete = [
+        RESULTS_DIR / f"{run_id}.json",
+        RESULTS_DIR / f"{run_id}_report.json",
+        RESULTS_DIR / f"{run_id}_schemas.json"
+    ]
+    
+    deleted_count = 0
+    for f in files_to_delete:
+        if f.exists():
+            try:
+                f.unlink()
+                deleted_count += 1
+            except Exception as e:
+                logger.error(f"Impossibile cancellare il file {f}: {e}")
+                
+    return {"status": "success", "files_deleted": deleted_count}

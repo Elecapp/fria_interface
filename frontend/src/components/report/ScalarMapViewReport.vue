@@ -1,244 +1,372 @@
 <script setup>
-import { computed } from "vue";
+import { computed, reactive, ref, watch, nextTick } from "vue";
+import { useRoute, useRouter } from "vue-router";
+import {
+  DEFAULT_WEIGHT_JUSTIFICATION,
+  buildScalarMapSavePayload,
+} from "../../utils/report_builder_helper";
+
+const router = useRouter();
+const route = useRoute();
+
+const group = computed(() => String(route.params.group || ""));
 
 const props = defineProps({
-  node: { type: Object, default: () => ({}) },
-  meta: { type: Object, default: () => ({}) },
-  metricKey: { type: String, default: "" },
-  featureKey: { type: String, default: null },
-  pageNumber: { type: [String, Number], default: "" },
+  metricKey: { type: String, required: true },
+  metricObj: { type: Object, required: true },
+  initialWeights: { type: Object, default: () => ({}) },
+  runId: { type: String, required: true },
 });
-
-const node = computed(() => props.node || {});
-const context = computed(() => node.value?.context_report ?? {});
-const total_score = computed(() => {
-  const v = props.node?.total_score_report;
-  return v !== undefined && v !== null ? Number(v).toFixed(2) : "-";
-});
-const gravity = computed(() => node.value?.gravity_report ?? "0");
-const reversibility = computed(() => node.value?.reversibility_report ? "YES" : "NO");
-const justification = computed(() => node.value?.user_justification_report ?? "");
-
-const metricDescription = computed(() =>
-  node.value?.metric_description_report || "Quantitative assessment of the selected metric."
-);
-
-const rightGroup = computed(() =>
-  node.value?.metric_right_report || node.value?.group_report || "Not available"
-);
 
 function prettifyLabel(str) {
-  if (!str) return "";
-  return String(str).replace(/_/g, " ").replace(/\b\w/g, (c) => c.toUpperCase());
+  return String(str || "")
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-function formatValue(v) {
-  if (v === null || v === undefined || v === "") return "-";
-  if (typeof v === "number") return Number.isFinite(v) ? v.toFixed(3) : "-";
-  if (typeof v === "boolean") return v ? "True" : "False";
-  return String(v);
+// --- STATI EXECUTIVE ---
+const MIN_JUST_LENGTH = 10;
+const DEFAULT_GRAVITY = 0;
+
+const gravityLabels = {
+  0: "0 - None",
+  1: "1 - Low",
+  2: "2 - Medium",
+  3: "3 - High",
+  4: "4 - Very High"
+};
+
+const featureGravity = reactive({});         
+const featureJustifications = reactive({});  
+const featureReversibility = reactive({}); // Aggiunta Reversibilità
+
+const initialized = ref(false);
+
+const items = computed(() => {
+  const obj = props.metricObj || {};
+  return Object.entries(obj)
+    .filter(([k, v]) => k !== "__combined__" && k !== "(global)" && typeof v === "number")
+    .map(([label, value]) => ({ label, value }));
+});
+
+watch(
+  items,
+  async (rows) => {
+    initialized.value = false;
+    for (const r of rows) {
+      // Leggiamo i pesi vecchi o impostiamo il default (0)
+      const init = Number(props.initialWeights?.[r.label]);
+      featureGravity[r.label] = Number.isFinite(init) ? init : DEFAULT_GRAVITY;
+      if (featureJustifications[r.label] === undefined) featureJustifications[r.label] = "";
+      if (featureReversibility[r.label] === undefined) featureReversibility[r.label] = false;
+    }
+    await nextTick();
+    initialized.value = true;
+  },
+  { immediate: true }
+);
+
+function isChanged(label) { return Number(featureGravity[label]) > 0; }
+const anyChanged = computed(() => items.value.some((r) => isChanged(r.label)));
+
+const missingJustifications = computed(() => {
+  const missing = [];
+  for (const r of items.value) {
+    if (isChanged(r.label)) {
+      const txt = String(featureJustifications[r.label] || "").trim();
+      if (txt.length < MIN_JUST_LENGTH) missing.push(r.label);
+    }
+  }
+  return missing;
+});
+
+const canSave = computed(() => {
+  if (!initialized.value) return false;
+  if (!anyChanged.value) return true; 
+  return missingJustifications.value.length === 0; 
+});
+
+function valueBucket(v) {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return "b41_60";
+  if (n <= 0.2) return "b0_20";
+  if (n <= 0.4) return "b21_40";
+  if (n <= 0.6) return "b41_60";
+  if (n <= 0.8) return "b61_80";
+  return "b81_100";
 }
 
-const title = computed(() => {
-  return context.value?.metric || prettifyLabel(props.metricKey) || "Metric Score";
-});
+const saving = ref(false);
+const saveError = ref("");
+const saveOk = ref(false);
 
-const contextRows = computed(() => {
-  return Object.entries(context.value || {})
-    .filter(([key]) => key.toLowerCase().replace(/_/g, " ") !== "final score")
-    .map(([key, value]) => ({
-      label: prettifyLabel(key),
-      value: typeof value === "string" ? prettifyLabel(value) : formatValue(value),
-    }));
-});
+function buildSavePayload() {
+  const weightsByLabel = {};
+  const justificationsByLabel = {};
+  const reversibilityByLabel = {}; // Prepariamo l'invio al backend
 
-const totalScoreLabel = computed(() => {
-  const v = Number(total_score.value);
-  if (v <= 2) return "Critical Compliance";
-  if (v <= 4) return "Low-Medium Compliance";
-  if (v <= 6) return "Moderate Compliance";
-  if (v <= 8) return "Good Compliance";
-  return "Optimal Compliance";
-});
+  for (const row of items.value) {
+    const label = row.label;
+    const g = Number(featureGravity[label]);
+    const finalGravity = Number.isFinite(g) ? g : DEFAULT_GRAVITY;
 
-const needleRotation = computed(() => {
-  const v = Math.max(0, Math.min(10, Number(total_score.value)));
-  return (v / 10) * 180 - 90;
-});
+    weightsByLabel[label] = finalGravity;
+    justificationsByLabel[label] = finalGravity === DEFAULT_GRAVITY ? DEFAULT_WEIGHT_JUSTIFICATION : String(featureJustifications[label] || "").trim();
+    reversibilityByLabel[label] = featureReversibility[label];
+  }
 
-const gaugeTicks = computed(() => {
-  const ticks = [0, 2, 4, 6, 8, 10];
-  const radius = 22; const centerX = 45; const centerY = 33;
-  return ticks.map((value) => {
-    const angleDeg = -180 + (value / 10) * 180;
-    const angleRad = (angleDeg * Math.PI) / 180;
-    const x = centerX + radius * Math.cos(angleRad);
-    const y = centerY + radius * Math.sin(angleRad);
-    return { value, style: { left: `${x}mm`, top: `${y}mm`, transform: "translate(-50%, -50%)" } };
+  const payload = buildScalarMapSavePayload({
+    runId: props.runId,
+    group: group.value,
+    metric: props.metricKey,
+    rows: items.value,
+    weightsByLabel,
+    justificationsByLabel,
   });
-});
+
+  // Aggiungiamo i dati per il nuovo backend Python
+  payload.reversibilityByLabel = reversibilityByLabel;
+
+  return payload;
+}
+
+async function postSaveMetric() {
+  const resp = await fetch("http://127.0.0.1:8000/results/save_weights", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(buildSavePayload()),
+  });
+
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({}));
+    throw new Error(err.detail || (await resp.text()) || "Failed to save weights");
+  }
+  return resp.json().catch(() => ({}));
+}
+
+async function onSave() {
+  if (!canSave.value || saving.value) return;
+
+  saving.value = true;
+  saveError.value = "";
+  saveOk.value = false;
+
+  try {
+    await postSaveMetric()
+    saveOk.value = true;
+    router.back();
+  } catch (e) {
+    saveError.value = e?.message || String(e);
+  } finally {
+    saving.value = false;
+  }
+}
 </script>
 
 <template>
-  <div class="report-page-content">
-    <header class="page-header">
-      <div class="meta-left">
-        <span class="brand">FRIA SYSTEM</span>
-        <span class="sep">|</span>
-        <span class="dataset">{{ meta.dataset_name }}</span>
-      </div>
-      <div class="meta-right">{{ meta.evaluation_date }}</div>
-    </header>
+  <div class="result-layout">
+    
+    <div class="header-area">
+      <div class="domain-tag">{{ prettifyLabel(group) }}</div>
+      <h1 class="metric-title">{{ prettifyLabel(metricKey) }}</h1>
+      <p class="metric-subtitle">Review the evaluation results across different parameters and assign contextual impact.</p>
+    </div>
 
-    <div class="page-inner">
-      <div class="title-section">
-        <div class="domain-tag">{{ prettifyLabel(rightGroup) }} Domain</div>
-        <h1 class="page-title">{{ title }}</h1>
-        <div v-if="featureKey && featureKey !== '(global)'" class="feature-tag">
-          Analysis Context: <strong>{{ prettifyLabel(featureKey) }}</strong>
+    <div class="content-split">
+      
+      <div class="results-column">
+        
+        <div class="legend-box">
+          <span class="legend-title">Score Interpretation</span>
+          <div class="legend-scale">
+            <div class="legend-item b0_20"><span>0 - 0.2</span></div>
+            <div class="legend-item b21_40"><span>0.2 - 0.4</span></div>
+            <div class="legend-item b41_60"><span>0.4 - 0.6</span></div>
+            <div class="legend-item b61_80"><span>0.6 - 0.8</span></div>
+            <div class="legend-item b81_100"><span>0.8 - 1.0</span></div>
+          </div>
+        </div>
+
+        <h2 class="section-label">Evaluation Data</h2>
+        
+        <div class="data-stack">
+          <div v-for="row in items" :key="row.label" class="data-card">
+            <div class="data-card-header" style="margin-bottom: 0;">
+              <h3 class="data-key">{{ prettifyLabel(row.label) }}</h3>
+              <div class="score-badge" :class="valueBucket(row.value)">
+                {{ Number(row.value).toFixed(3) }}
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
-      <div class="main-grid">
-        <div class="left-column">
-          <section class="info-section">
-            <h3 class="section-label">Metric Description</h3>
-            <p class="description-text">{{ metricDescription }}</p>
-          </section>
+      <div class="context-column">
+        <h2 class="section-label">Contextual Impact</h2>
+        
+        <div class="weight-card executive-panel">
+          <p class="help-text">Standard gravity is None (0). If a higher gravity is selected, a textual justification will be required.</p>
 
-          <section class="info-section" v-if="contextRows.length">
-            <h3 class="section-label">Summary Report</h3>
-            <div class="summary-list">
-              <div v-for="row in contextRows" :key="row.label" class="summary-item">
-                <span class="s-label">{{ row.label }}</span>
-                <span class="s-value mono">{{ row.value }}</span>
+          <div v-if="!anyChanged" class="just-placeholder">
+            <div class="icon-circle">✓</div>
+            <p>All gravities are set to None. No justifications required.</p>
+          </div>
+
+          <div v-else class="justifications-list">
+            <div 
+              v-for="row in items" 
+              :key="'j_' + row.label"
+              v-show="isChanged(row.label)"
+              class="justification-area is-active"
+            >
+              <div class="just-header" style="border-bottom: 1px solid #e5e5e5; padding-bottom: 10px; margin-bottom: 15px;">
+                <label style="font-size: 1.1rem; color: #1A365D;">{{ prettifyLabel(row.label) }}</label>
               </div>
-            </div>
-          </section>
-        </div>
+              
+              <label class="reversibility-toggle">
+                <input 
+                  type="checkbox" 
+                  v-model="featureReversibility[row.label]" 
+                />
+                <span class="checkbox-box"></span>
+                <span class="checkbox-text">Reversibility (Yes)</span>
+              </label>
 
-        <div class="right-column">
-          <section class="gauge-box">
-            <h3 class="section-label central">Visual Assessment</h3>
-            <div class="gauge-wrap">
-              <div class="gauge-shell">
-                <div class="gauge-arc">
-                  <div class="segment seg-1"></div>
-                  <div class="segment seg-2"></div>
-                  <div class="segment seg-3"></div>
-                  <div class="segment seg-4"></div>
-                  <div class="segment seg-5"></div>
-                </div>
-                <div class="needle" :style="{ transform: `translateX(-50%) rotate(${needleRotation}deg)` }"></div>
-                <div class="needle-center"></div>
-                <div class="gauge-readout">
-                  <div class="gauge-number">{{ total_score }}</div>
-                  <div class="gauge-text">{{ totalScoreLabel }}</div>
-                </div>
-                <span v-for="tick in gaugeTicks" :key="tick.value" class="tick" :style="tick.style">{{ tick.value }}</span>
+              <div class="just-header">
+                <label>Justification</label>
+                <span v-if="String(featureJustifications[row.label] || '').trim().length < MIN_JUST_LENGTH" class="req-badge">Req. (min {{ MIN_JUST_LENGTH }} chars)</span>
+                <span v-else class="ok-badge">Valid ✓</span>
               </div>
+              <textarea 
+                v-model="featureJustifications[row.label]" 
+                class="modern-textarea" 
+                rows="3" 
+                placeholder="Explain the impact..."
+              ></textarea>
             </div>
-          </section>
 
-          <div class="scores-container">
-            <div class="score-pill">
-              <span class="p-label">User Weight</span>
-              <span class="p-value">{{ weight }}</span>
-            </div>
-            <div class="score-pill blue">
-              <span class="p-label">Final Score</span>
-              <span class="p-value">{{ total_score }}</span>
+            <div v-if="missingJustifications.length" class="error-msg" style="margin-top: 1rem;">
+              You have {{ missingJustifications.length }} missing justification(s).
             </div>
           </div>
 
-          <section v-if="justification && justification !== 'No justification provided.'" class="justification-box">
-            <h3 class="section-label">Contextual Justification</h3>
-            <p class="justification-text">"{{ justification }}"</p>
-          </section>
         </div>
-      </div>
-    </div>
 
-    <div class="page-number">{{ pageNumber }}</div>
+        <div class="action-card" style="margin-top: 20px; background: #fff; padding: 20px; border-radius: 12px; border: 1px solid #e5e5e5;">
+          <div v-for="row in items" :key="'g_' + row.label" style="margin-bottom: 25px; border-bottom: 1px solid #f0f0f0; padding-bottom: 15px;">
+            <div class="slider-labels-top">
+              <span>Gravity for: {{ prettifyLabel(row.label) }}</span>
+              <span class="weight-display">{{ gravityLabels[featureGravity[row.label]] }}</span>
+            </div>
+            
+            <input 
+              type="range" min="0" max="4" step="1" 
+              v-model.number="featureGravity[row.label]" 
+              class="premium-slider"
+            />
+            
+            <div class="ticks-labels">
+              <div class="tick-item"><span>None</span></div>
+              <div class="tick-item"><span>Low</span></div>
+              <div class="tick-item"><span>Med</span></div>
+              <div class="tick-item"><span>High</span></div>
+              <div class="tick-item"><span>V. High</span></div>
+            </div>
+          </div>
+
+          <div class="action-row">
+            <button class="btn-ghost" @click="router.back()">Cancel</button>
+            <button class="btn-primary" :disabled="!canSave || saving" @click="onSave">
+              {{ saving ? "Saving..." : "Save & Return" }}
+            </button>
+          </div>
+        </div>
+
+      </div>
+
+    </div>
   </div>
 </template>
 
 <style scoped>
-@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500&display=swap');
-
-.report-page-content {
-  height: 100%;
-  padding: 20mm 20mm 15mm;
-  box-sizing: border-box;
-  position: relative;
-  font-family: 'Inter', sans-serif;
-  color: #1a202c;
-  background: #fff;
-}
+.result-layout { max-width: 1200px; margin: 0 auto; padding: 2rem; font-family: 'Inter', sans-serif; color: #111; }
 
 /* Header */
-.page-header {
-  display: flex; justify-content: space-between; align-items: center;
-  border-bottom: 1px solid #e2e8f0; padding-bottom: 8px; margin-bottom: 10mm;
-  font-size: 10px; font-weight: 600; color: #64748b; letter-spacing: 0.5px;
-}
-.sep { margin: 0 8px; color: #cbd5e1; }
-.brand { color: #1e293b; font-weight: 800; }
+.header-area { margin-bottom: 2rem; }
+.domain-tag { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 1px; font-weight: 700; color: #1A365D; background: #e2e8f0; padding: 4px 10px; border-radius: 4px; display: inline-block; margin-bottom: 1rem; }
+.metric-title { font-family: 'Instrument Serif', serif; font-size: 3.5rem; margin: 0 0 0.5rem 0; color: #1A365D; line-height: 1.1; }
+.metric-subtitle { font-size: 1.1rem; color: #555; max-width: 700px; line-height: 1.5; margin: 0; }
 
-/* Title Section */
-.title-section { margin-bottom: 10mm; }
-.domain-tag { font-size: 10px; font-weight: 800; text-transform: uppercase; color: #3b82f6; letter-spacing: 1px; margin-bottom: 4px; }
-.page-title { font-family: 'Instrument Serif', serif; font-size: 42px; line-height: 1.1; margin: 0; font-weight: 400; color: #1e293b; }
-.feature-tag { margin-top: 8px; font-size: 13px; color: #475569; }
+/* Layout Split */
+.content-split { display: grid; grid-template-columns: 1fr 450px; gap: 2rem; align-items: start; }
+@media (max-width: 900px) { .content-split { grid-template-columns: 1fr; } }
 
-/* Grid Layout */
-.main-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12mm; align-items: start; }
+.section-label { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 1px; font-weight: 600; color: #888; margin: 0 0 1rem 0; }
 
-.section-label { font-size: 10px; font-weight: 800; text-transform: uppercase; color: #94a3b8; letter-spacing: 1px; margin-bottom: 12px; border-bottom: 1px solid #f1f5f9; padding-bottom: 4px; }
-.section-label.central { text-align: center; }
+/* Legend */
+.legend-box { background: #fff; border: 1px solid #e5e5e5; border-radius: 12px; padding: 1rem 1.5rem; margin-bottom: 2rem; display: flex; align-items: center; gap: 1.5rem; }
+.legend-title { font-size: 0.85rem; font-weight: 600; color: #555; text-transform: uppercase; }
+.legend-scale { display: flex; flex: 1; height: 24px; border-radius: 6px; overflow: hidden; }
+.legend-item { flex: 1; display: flex; align-items: center; justify-content: center; font-size: 0.7rem; font-weight: 700; font-family: 'JetBrains Mono', monospace; }
+.legend-item span { background: rgba(255,255,255,0.8); padding: 2px 6px; border-radius: 4px; color: #111; }
 
-/* Info Sections */
-.info-section { margin-bottom: 8mm; }
-.description-text { font-size: 13px; line-height: 1.6; color: #334155; font-style: italic; }
+/* Bucket Colors */
+.b81_100 { background: #1A365D; color: #fff; }
+.b61_80  { background: #2f76b7; color: #fff;}
+.b41_60  { background: #8fc2e6; }
+.b21_40  { background: #ffbf85; }
+.b0_20   { background: #e11d48; color: #fff;}
 
-.summary-list { display: flex; flex-direction: column; gap: 8px; }
-.summary-item { display: flex; justify-content: space-between; font-size: 12px; padding-bottom: 6px; border-bottom: 1px solid #f8fafc; }
-.s-label { color: #64748b; font-weight: 500; }
-.s-value { font-weight: 700; color: #1e293b; }
-.mono { font-family: 'JetBrains Mono', monospace; }
+/* Left Column: Results Stack */
+.data-stack { display: flex; flex-direction: column; gap: 1rem; }
+.data-card { background: #fff; border: 1px solid #e5e5e5; border-radius: 12px; padding: 1.5rem; box-shadow: 0 4px 6px rgba(0,0,0,0.02); }
+.data-card-header { display: flex; justify-content: space-between; align-items: center; }
+.data-key { font-size: 1.1rem; font-weight: 600; color: #111; margin: 0; }
+.score-badge { font-family: 'JetBrains Mono', monospace; font-size: 1.2rem; font-weight: 700; padding: 6px 14px; border-radius: 8px; border: 1px solid rgba(0,0,0,0.1); }
 
-/* Score Pills */
-.scores-container { display: flex; gap: 10px; margin-top: 5mm; margin-bottom: 8mm; }
-.score-pill { flex: 1; background: #f8fafc; padding: 12px; border-radius: 8px; border: 1px solid #e2e8f0; display: flex; flex-direction: column; align-items: center; }
-.score-pill.blue { background: #eff6ff; border-color: #dbeafe; }
-.p-label { font-size: 9px; font-weight: 800; text-transform: uppercase; color: #64748b; }
-.p-value { font-size: 20px; font-weight: 800; color: #1e293b; }
-.score-pill.blue .p-value { color: #1d4ed8; }
+/* Right Column: Weight & Justification */
+.executive-panel { background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 2rem; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); }
+.help-text { font-size: 0.95rem; color: #666; line-height: 1.5; margin-bottom: 2rem; margin-top: 0; }
 
-/* Justification */
-.justification-box { background: #fdfdfd; border-left: 3px solid #3b82f6; padding: 15px; }
-.justification-text { font-size: 12px; line-height: 1.5; color: #475569; margin: 0; }
+.just-placeholder { display: flex; flex-direction: column; align-items: center; text-align: center; padding: 3rem 1rem; color: #888; }
+.icon-circle { width: 48px; height: 48px; background: #e5e7eb; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 1.5rem; margin-bottom: 1rem; color: #555; }
 
-/* Gauge Styles */
-.gauge-box { background: #fff; border: 1px solid #f1f5f9; border-radius: 12px; padding: 20px 10px; margin-bottom: 5mm; }
-.gauge-wrap { display: flex; justify-content: center; transform: scale(0.85); }
-.gauge-shell { position: relative; width: 90mm; height: 45mm; overflow: hidden; }
-.gauge-arc { position: absolute; inset: 0; overflow: hidden; }
-.gauge-arc::after { content: ""; position: absolute; left: 0; right: 0; bottom: -2mm; height: 12mm; background: #fff; z-index: 6; }
-.segment { position: absolute; left: 50%; top: 70%; width: 60mm; height: 60mm; border-radius: 50%; border: 7mm solid transparent; transform-origin: center center; }
-.seg-1 { transform: translate(-50%, -50%) rotate(-103deg); border-top-color: #ef4444; z-index: 5; }
-.seg-2 { transform: translate(-50%, -50%) rotate(-65deg); border-top-color: #f97316; z-index: 4; }
-.seg-3 { transform: translate(-50%, -50%) rotate(-22deg); border-top-color: #facc15; z-index: 3; }
-.seg-4 { transform: translate(-50%, -50%) rotate(14deg); border-top-color: #38bdf8; z-index: 2; }
-.seg-5 { transform: translate(-50%, -50%) rotate(54deg); border-top-color: #1d4ed8; z-index: 1; }
-.needle { position: absolute; left: 50%; bottom: 12.5mm; width: 1.5mm; height: 26mm; background: #1e293b; border-radius: 99px; z-index: 10; transform-origin: bottom center; }
-.needle-center { position: absolute; left: 50%; bottom: 10mm; width: 5mm; height: 5mm; background: #1e293b; border-radius: 50%; transform: translateX(-50%); z-index: 11; }
-.gauge-readout { position: absolute; left: 50%; bottom: 0mm; transform: translateX(-50%); text-align: center; z-index: 12; width: 100%; }
-.gauge-number { font-size: 16px; font-weight: 800; color: #1e293b; }
-.gauge-text { font-size: 10px; font-weight: 700; color: #64748b; text-transform: uppercase; margin-top: 2px; }
-.tick { position: absolute; font-size: 9px; font-weight: 800; color: #94a3b8; z-index: 7; }
+.justifications-list { display: flex; flex-direction: column; gap: 1rem; }
+.justification-area { background: #fff; border: 1px solid #e5e5e5; border-radius: 12px; padding: 1.2rem; transition: border-color 0.3s; }
+.justification-area.is-active { border-color: #cbd5e1; border-left: 4px solid #1A365D; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+.just-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.8rem; }
+.just-header label { font-size: 0.9rem; font-weight: 700; color: #111; }
+.req-badge { font-size: 0.75rem; font-weight: 700; color: #e11d48; background: #fff1f2; padding: 2px 6px; border-radius: 4px; }
+.ok-badge { font-size: 0.75rem; font-weight: 700; color: #16a34a; background: #f0fdf4; padding: 2px 6px; border-radius: 4px; }
+.modern-textarea { width: 100%; padding: 0.8rem; border: 1px solid #e5e5e5; border-radius: 8px; font-family: 'Inter', sans-serif; font-size: 0.9rem; resize: vertical; box-sizing: border-box; }
+.modern-textarea:focus { outline: none; border-color: #1A365D; box-shadow: 0 0 0 3px rgba(26,54,93,0.1); }
 
-.page-number { position: absolute; bottom: 10mm; right: 20mm; font-size: 10px; font-family: monospace; color: #94a3b8; }
+/* Nuovi Slider Premium */
+.slider-labels-top { display: flex; justify-content: space-between; margin-bottom: 12px; font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 700; text-transform: uppercase; color: #64748b; }
+.weight-display { color: #1A365D; }
+.premium-slider { -webkit-appearance: none; width: 100%; height: 6px; border-radius: 999px; background: #e5e5e5; outline: none; margin-bottom: 10px; }
+.premium-slider::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 22px; height: 22px; border-radius: 50%; background: #1A365D; cursor: pointer; border: 4px solid #fff; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
+.ticks-labels { display: flex; justify-content: space-between; padding: 0 5px; }
+.tick-item { flex: 1; text-align: center; }
+.tick-item:first-child { text-align: left; }
+.tick-item:last-child { text-align: right; }
+.tick-item span { font-family: 'JetBrains Mono', monospace; font-size: 10px; text-transform: uppercase; color: #64748b; font-weight: 700; }
 
-@media print { .report-page-content { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
+/* Reversibility Toggle */
+.reversibility-toggle { display: flex; align-items: center; gap: 12px; cursor: pointer; margin-bottom: 25px; }
+.reversibility-toggle input { display: none; }
+.checkbox-box { width: 24px; height: 24px; border: 2px solid #cbd5e1; display: inline-block; position: relative; transition: 0.2s; border-radius: 4px; }
+.reversibility-toggle input:checked ~ .checkbox-box { background-color: #1A365D; border-color: #1A365D; }
+.reversibility-toggle input:checked ~ .checkbox-box:after { content: ""; position: absolute; left: 7px; top: 3px; width: 5px; height: 11px; border: solid white; border-width: 0 2px 2px 0; transform: rotate(45deg); }
+.checkbox-text { font-family: 'Inter', sans-serif; font-size: 0.95rem; font-weight: 600; color: #1e293b; }
+
+.error-msg { color: #e11d48; font-size: 0.9rem; font-weight: 600; text-align: center; background: #fff1f2; padding: 10px; border-radius: 8px; }
+
+/* Actions */
+.action-row { display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #e5e5e5; padding-top: 1.5rem; }
+.btn-ghost { background: transparent; border: none; font-family: 'Inter', sans-serif; font-weight: 600; color: #666; cursor: pointer; transition: 0.2s; padding: 0.5rem; }
+.btn-ghost:hover { color: #111; }
+.btn-primary { background: #1A365D; color: #fff; border: 1px solid #1A365D; padding: 0.8rem 1.5rem; border-radius: 4px; font-family: 'Inter', sans-serif; font-weight: 600; cursor: pointer; transition: 0.2s; }
+.btn-primary:hover:not(:disabled) { background: #2563eb; border-color: #2563eb; }
+.btn-primary:disabled { background: #e5e5e5; color: #a0a0a0; border-color: #e5e5e5; cursor: not-allowed; }
 </style>

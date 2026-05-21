@@ -9,25 +9,38 @@ const props = defineProps({
   pageNumber: { type: Number, default: 1 },
 });
 
-const node = computed(() => props.node ?? {});
-const context = computed(() => node.value?.context_report ?? {});
-const summary = computed(() => node.value?.summary_report ?? {});
+const dataNode = computed(() => props.node ?? {});
+const context = computed(() => dataNode.value?.context_report ?? {});
+const summary = computed(() => dataNode.value?.summary_report ?? {});
+
+// 1. Likelihood (Valore calcolato dall'algoritmo, usato per il contachilometri)
+const likelihoodScore = computed(() => {
+  const v = summary.value?.["Final Score"] ?? context.value?.["Final Score"] ?? dataNode.value?.final_score;
+  if (v !== undefined && v !== null) {
+      const num = Number(v);
+      return num <= 1 ? (num * 10).toFixed(2) : num.toFixed(2);
+  }
+  return "N/A";
+});
+
+// 2. Gravity e Reversibility
+const gravity = computed(() => dataNode.value?.gravity_report ?? "0");
+const reversibility = computed(() => dataNode.value?.reversibility_report ? "YES" : "NO");
+
+// 3. Final Risk Score (Il calcolo FRIA totale)
 const total_score = computed(() => {
-  const v = props.node?.total_score_report;
+  const v = dataNode.value?.total_score_report;
   return v !== undefined && v !== null ? Number(v).toFixed(2) : "-";
 });
 
-// Estrazione nuovi dati Executive dal JSON del backend
-const gravity = computed(() => node.value?.gravity_report ?? "0");
-const reversibility = computed(() => node.value?.reversibility_report ? "YES" : "NO");
-const justification = computed(() => node.value?.user_justification_report ?? "");
+const justification = computed(() => dataNode.value?.user_justification_report ?? "");
 
 const metricDescription = computed(() => 
-  node.value?.metric_description_report || "Detailed analysis of the metric results for the specific feature identified."
+  dataNode.value?.metric_description_report || "Detailed analysis of the metric results for the specific feature identified."
 );
 
 const rightGroup = computed(() =>
-  node.value?.metric_right_report || node.value?.group_report || "Not available"
+  dataNode.value?.metric_right_report || dataNode.value?.group_report || "Not available"
 );
 
 function prettifyLabel(str) {
@@ -54,7 +67,6 @@ const contextRows = computed(() => {
   }));
 });
 
-// Intercettiamo "Final Score" e lo convertiamo in "Likelihood" per la stampa
 const summaryRows = computed(() => {
   return Object.entries(summary.value || {})
     .filter(([key]) => key !== "Final Score")
@@ -65,16 +77,17 @@ const summaryRows = computed(() => {
 });
 
 const totalScoreLabel = computed(() => {
-  const v = Number(total_score.value);
-  if (v <= 2) return "Critical Compliance";
-  if (v <= 4) return "Low-Medium Compliance";
-  if (v <= 6) return "Moderate Compliance";
-  if (v <= 8) return "Good Compliance";
-  return "Optimal Compliance";
+  const v = Number(likelihoodScore.value);
+  if (isNaN(v)) return "Unknown";
+  if (v <= 2) return "Critical";
+  if (v <= 4) return "Low-Medium";
+  if (v <= 6) return "Moderate";
+  if (v <= 8) return "Good";
+  return "Optimal";
 });
 
 const needleRotation = computed(() => {
-  const v = Math.max(0, Math.min(10, Number(total_score.value)));
+  const v = Math.max(0, Math.min(10, Number(likelihoodScore.value) || 0));
   return (v / 10) * 180 - 90;
 });
 
@@ -154,7 +167,7 @@ const gaugeTicks = computed(() => {
                 <div class="needle" :style="{ transform: `translateX(-50%) rotate(${needleRotation}deg)` }"></div>
                 <div class="needle-center"></div>
                 <div class="gauge-readout">
-                  <div class="gauge-number">{{ total_score }}</div>
+                  <div class="gauge-number">{{ likelihoodScore }}</div>
                   <div class="gauge-text">{{ totalScoreLabel }}</div>
                 </div>
                 <span v-for="tick in gaugeTicks" :key="tick.value" class="tick" :style="tick.style">{{ tick.value }}</span>
@@ -162,9 +175,15 @@ const gaugeTicks = computed(() => {
             </div>
           </section>
 
-          <section class="info-section scores-row">
+          <section class="info-section scores-row" style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 5mm;">
+             
              <div class="score-pill">
-               <span class="p-label">Gravity</span>
+               <span class="p-label">Likelihood (0-10)</span>
+               <span class="p-value">{{ likelihoodScore }}</span>
+             </div>
+
+             <div class="score-pill">
+               <span class="p-label">Gravity (0-4)</span>
                <span class="p-value">{{ gravity }}</span>
              </div>
              
@@ -174,7 +193,7 @@ const gaugeTicks = computed(() => {
              </div>
 
              <div class="score-pill blue">
-               <span class="p-label">Feature Score</span>
+               <span class="p-label">FINAL RISK SCORE</span>
                <span class="p-value">{{ total_score }}</span>
              </div>
           </section>
@@ -236,7 +255,6 @@ const gaugeTicks = computed(() => {
 .mono { font-family: 'JetBrains Mono', monospace; }
 
 /* Score Pills Modificate per Reversibility */
-.scores-row { display: flex; gap: 8px; margin-top: 10mm; }
 .score-pill { flex: 1; background: #f8fafc; padding: 12px 6px; border-radius: 8px; border: 1px solid #e2e8f0; display: flex; flex-direction: column; align-items: center; }
 .score-pill.blue { background: #eff6ff; border-color: #dbeafe; }
 .score-pill.red-pill { background: #fef2f2; border-color: #fecaca; }

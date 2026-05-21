@@ -62,8 +62,8 @@ class DisparateImpact:
 
                 #Structured Results
                 "selection_rates": sr.to_dict(),
-                "disparate_impact": normalized_score .item(),
-                "final_score": (10*(normalized_score .item())),
+                "disparate_impact": float(normalized_score),
+                "final_score": 10 * float(normalized_score)
             }
         
         return results
