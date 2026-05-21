@@ -1,9 +1,91 @@
 {
+  "conditional_statistical_parity": {
+    "gender": {
+      "metric": "Conditional Statistical Parity",
+      "status": "success",
+      "conditional_variable": "esito_mutuo",
+      "sensitive_feature": "gender",
+      "conditions": {
+        "approvato": {
+          "F": 0.0,
+          "M": 0.0,
+          "raw_difference": 0.0,
+          "normalized_score": 1.0,
+          "weight": 0.63,
+          "total_samples": 63
+        },
+        "rifiutato": {
+          "F": 0.0,
+          "M": 0.0,
+          "raw_difference": 0.0,
+          "normalized_score": 1.0,
+          "weight": 0.37,
+          "total_samples": 37
+        }
+      },
+      "disparity_summary": {
+        "raw_average": 0.0,
+        "raw_max": 0.0,
+        "raw_min": 0.0,
+        "normalized_average": 1.0,
+        "normalized_max": 1.0,
+        "normalized_min": 1.0,
+        "processed_conditions": 2,
+        "total_samples": 100,
+        "final_score": 10.0
+      }
+    },
+    "eta_intervallo": {
+      "metric": "Conditional Statistical Parity",
+      "status": "success",
+      "conditional_variable": "esito_mutuo",
+      "sensitive_feature": "eta_intervallo",
+      "conditions": {
+        "approvato": {
+          "18-30": 0.0,
+          "31-45": 0.0,
+          "46-60": 0.0,
+          "61+": 0.0,
+          "raw_difference": 0.0,
+          "normalized_score": 1.0,
+          "weight": 0.63,
+          "total_samples": 63
+        },
+        "rifiutato": {
+          "18-30": 0.0,
+          "31-45": 0.0,
+          "46-60": 0.0,
+          "61+": 0.0,
+          "raw_difference": 0.0,
+          "normalized_score": 1.0,
+          "weight": 0.37,
+          "total_samples": 37
+        }
+      },
+      "disparity_summary": {
+        "raw_average": 0.0,
+        "raw_max": 0.0,
+        "raw_min": 0.0,
+        "normalized_average": 1.0,
+        "normalized_max": 1.0,
+        "normalized_min": 1.0,
+        "processed_conditions": 2,
+        "total_samples": 100,
+        "final_score": 10.0
+      }
+    }
+  },
   "conditional_use_accuracy_equality": {
-    "age_group": {
+    "gender": {
       "metric": "Conditional Use Accuracy Equality",
       "status": "error",
-      "sensitive_feature": "age_group",
+      "sensitive_feature": "gender",
+      "message": "need at least one array to stack"
+    },
+    "eta_intervallo": {
+      "metric": "Conditional Use Accuracy Equality",
+      "status": "error",
+      "sensitive_feature": "eta_intervallo",
       "message": "need at least one array to stack"
     }
   }

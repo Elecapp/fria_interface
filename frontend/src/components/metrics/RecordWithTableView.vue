@@ -2,7 +2,6 @@
 import { computed, ref, watch } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import {
-  DEFAULT_WEIGHT,
   DEFAULT_WEIGHT_JUSTIFICATION,
   rowsToDict,
   isScalar,
@@ -41,7 +40,7 @@ function formatAny(v) {
 
 const featureKeys = computed(() =>
   props.metricObj && typeof props.metricObj === "object"
-    ? Object.keys(props.metricObj).filter((k) => k !== "__combined__" && k !== "(global)")
+    ? Object.keys(props.metricObj).filter((k) => k !== "__combined__" && k !== "(global)" && k !== "final_score" && k !== "gravity" && k !== "reversibility")
     : []
 );
 
@@ -69,6 +68,8 @@ const summaryRows = computed(() => {
   const rows = [];
   for (const [k, v] of Object.entries(o)) {
     if (isListOfDicts(v)) continue; 
+    if (k === "final_score" || k === "gravity" || k === "reversibility") continue; // Filtra chiavi di sistema
+    
     const scalar = isScalar(v);
     const smallArray = Array.isArray(v) && v.length <= 50 && v.every((x) => ["string", "number", "boolean"].includes(typeof x));
     if (scalar || smallArray) rows.push({ key: k, value: v });
@@ -92,11 +93,22 @@ const tableBlocks = computed(() => {
   return blocks;
 });
 
+// --- STATI EXECUTIVE ---
 const MIN_JUST_LENGTH = 10;
-const metricWeight = ref(DEFAULT_WEIGHT);
+const DEFAULT_GRAVITY = 0;
+const metricGravity = ref(DEFAULT_GRAVITY);
+const metricReversibility = ref(false);
 const metricJustification = ref("");
 
-function isChangedMetric() { return Number(metricWeight.value) !== DEFAULT_WEIGHT; }
+const gravityLabels = {
+  0: "0 - None",
+  1: "1 - Low",
+  2: "2 - Medium",
+  3: "3 - High",
+  4: "4 - Very High"
+};
+
+function isChangedMetric() { return Number(metricGravity.value) > 0; }
 const missingJustifications = computed(() => {
   if (!isChangedMetric()) return [];
   const txt = String(metricJustification.value || "").trim();
@@ -110,21 +122,29 @@ const canSave = computed(() => {
 
 function buildSavePayload() {
   const contextReport = rowsToDict(summaryRows.value);
-  return buildRecordWithTableSavePayload({
+  const finalGravity = isChangedMetric() ? Number(metricGravity.value) : DEFAULT_GRAVITY;
+  
+  const payload = buildRecordWithTableSavePayload({
     runId: props.runId,
     group: group.value,
     metric: props.metricKey,
     metricObj: contextReport,
-    userWeight: isChangedMetric() ? Number(metricWeight.value) : DEFAULT_WEIGHT,
-    userJustification: Number(metricWeight.value) === DEFAULT_WEIGHT ? DEFAULT_WEIGHT_JUSTIFICATION : String(metricJustification.value || "").trim(),
+    userWeight: finalGravity, 
+    userJustification: finalGravity === DEFAULT_GRAVITY ? DEFAULT_WEIGHT_JUSTIFICATION : String(metricJustification.value || "").trim(),
   });
+
+  // Aggiungiamo i dati per il nuovo backend Python
+  payload.gravity = finalGravity;
+  payload.reversibility = metricReversibility.value;
+
+  return payload;
 }
 
 async function postSaveMetric() {
   const resp = await fetch("http://127.0.0.1:8000/results/save_weights", {
     method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(buildSavePayload()),
   });
-  if (!resp.ok) throw new Error("Failed to save weight");
+  if (!resp.ok) throw new Error("Failed to save data");
   return resp.json().catch(() => ({}));
 }
 
@@ -140,13 +160,11 @@ async function onSave() {
   } catch (e) { saveError.value = e?.message || String(e); } finally { saving.value = false; }
 }
 
-// Per emulare il goBackSafely di ConditionalNested e non rompere la dashboard
 const emit = defineEmits(["go-back-safe"]);
 async function goBackSafely() {
   if (isChangedMetric() && canSave.value) {
     await onSave();
   } else if (!isChangedMetric()) {
-    // Save defaults silently before exiting if untouched
     try { await postSaveMetric(); } catch(e){}
   }
   emit("go-back-safe");
@@ -157,32 +175,22 @@ defineExpose({ goBackSafely });
 <template>
   <div class="result-layout">
     
-    <div class="header-area">
-      <div class="header-top">
-        <div class="domain-tag">{{ prettifyLabel(group) }}</div>
-        <button class="btn-ghost" @click="goBackSafely">← Back to Dashboard</button>
-      </div>
-      <h1 class="metric-title">{{ prettifyLabel(metricKey) }}</h1>
-      <p class="metric-subtitle">Review the evaluation data and assign a contextual weight based on your scenario.</p>
-    </div>
-
     <div class="content-split">
       
       <div class="results-column">
-        <h2 class="section-label">Evaluation Data</h2>
         
-        <div v-if="summaryRows.length" class="data-card">
-          <h3>Summary</h3>
+        <div v-if="summaryRows.length" class="executive-panel" style="margin-bottom: 20px;">
+          <h3 style="margin-top:0;">Summary</h3>
           <div class="metrics-grid">
             <div v-for="r in summaryRows" :key="r.key" class="data-item">
-              <span class="data-key">{{ prettifyLabel(r.key) }}</span>
-              <span class="data-value">{{ formatAny(r.value) }}</span>
+              <span class="data-key">{{ (r.key === 'final_score' || r.key === 'final score') ? 'Likelihood' : prettifyLabel(r.key) }}</span>
+              <span class="data-value mono-text">{{ formatAny(r.value) }}</span>
             </div>
           </div>
         </div>
 
-        <div v-for="tb in tableBlocks" :key="tb.key" class="table-card">
-          <h3>{{ tb.title }}</h3>
+        <div v-for="tb in tableBlocks" :key="tb.key" class="table-card executive-panel" style="padding: 0; overflow: hidden; margin-bottom: 20px;">
+          <h3 style="padding: 20px 20px 10px 20px; margin:0;">{{ tb.title }}</h3>
           <div class="table-responsive">
             <table class="modern-table">
               <thead>
@@ -192,39 +200,46 @@ defineExpose({ goBackSafely });
               </thead>
               <tbody>
                 <tr v-for="(r, idx) in tb.rows" :key="idx">
-                  <td v-for="c in tb.columns" :key="c" class="mono">{{ formatAny(r[c]) }}</td>
+                  <td v-for="c in tb.columns" :key="c" class="mono-text">{{ formatAny(r[c]) }}</td>
                 </tr>
               </tbody>
             </table>
           </div>
         </div>
 
-        <div v-if="!summaryRows.length && !tableBlocks.length" class="data-card empty-state">
+        <div v-if="!summaryRows.length && !tableBlocks.length" class="executive-panel empty-state">
           <h3>Raw output</h3>
           <pre class="raw-data">{{ JSON.stringify(featureObj || metricObj, null, 2) }}</pre>
         </div>
       </div>
 
       <div class="context-column">
-        <h2 class="section-label">Contextual Impact</h2>
         
-        <div class="weight-card">
-          <div class="weight-header">
-            <h3>Metric Weight</h3>
-            <span class="weight-display">W = {{ metricWeight }}</span>
+        <div class="weight-card executive-panel">
+          
+          <div class="weight-header" style="margin-bottom: 20px;">
+            <label class="gravity-label">Contextual Impact</label>
           </div>
           
-          <p class="help-text">Adjust the impact score (0–10). A higher value means this metric is critical for your specific use case. Default is 5.</p>
-
           <div class="slider-container">
-            <div class="slider-labels">
-              <span>0</span><span>5</span><span>10</span>
+            <div class="slider-labels-top">
+              <span>Gravity</span>
+              <span class="weight-display">{{ gravityLabels[metricGravity] }}</span>
             </div>
+            
             <input 
-              type="range" min="0" max="10" step="0.5" 
-              v-model.number="metricWeight" 
-              class="modern-slider"
+              type="range" min="0" max="4" step="1" 
+              v-model.number="metricGravity" 
+              class="premium-slider"
             />
+            
+            <div class="ticks-labels">
+              <div class="tick-item"><span>None</span></div>
+              <div class="tick-item"><span>Low</span></div>
+              <div class="tick-item"><span>Med</span></div>
+              <div class="tick-item"><span>High</span></div>
+              <div class="tick-item"><span>Very High</span></div>
+            </div>
           </div>
 
           <div class="justification-area" :class="{ 'is-active': isChangedMetric() }">
@@ -237,16 +252,16 @@ defineExpose({ goBackSafely });
               <textarea 
                 v-model="metricJustification" 
                 class="modern-textarea" 
-                rows="4" 
-                placeholder="Explain why this metric requires a custom weight in your context..."
+                rows="3" 
+                placeholder="Explain the impact..."
               ></textarea>
             </div>
             <div v-else class="just-placeholder">
-              <p>Keep the default weight (5) to bypass justification.</p>
+              <p>Gravity is None. No justification needed.</p>
             </div>
           </div>
 
-          <div v-if="saveError" class="error-msg">{{ saveError }}</div>
+          <div v-if="saveError" class="error-msg-box">{{ saveError }}</div>
 
           <div class="action-row">
             <button class="btn-primary" :disabled="!canSave || saving" @click="onSave" style="width: 100%;">
@@ -262,65 +277,64 @@ defineExpose({ goBackSafely });
 </template>
 
 <style scoped>
-.result-layout { max-width: 1200px; margin: 0 auto; padding: 2rem; font-family: 'Inter', sans-serif; color: #111; }
-.header-area { margin-bottom: 3rem; }
-.header-top { display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; }
-.domain-tag { font-size: 0.75rem; text-transform: uppercase; letter-spacing: 1px; font-weight: 700; color: #1243e3; background: #f4f6fe; padding: 4px 10px; border-radius: 4px; display: inline-block; }
-.btn-ghost { background: transparent; border: none; font-family: 'Inter', sans-serif; font-weight: 600; color: #666; cursor: pointer; transition: 0.2s; }
-.btn-ghost:hover { color: #111; }
-.metric-title { font-family: 'Instrument Serif', serif; font-size: 3.5rem; margin: 0 0 0.5rem 0; color: #1A365D; line-height: 1.1; }
-.metric-subtitle { font-size: 1.1rem; color: #555; max-width: 700px; line-height: 1.5; margin: 0; }
-
+.result-layout { font-family: 'Inter', sans-serif; color: #111; margin-top: 10px; }
 .content-split { display: grid; grid-template-columns: 1fr 400px; gap: 2rem; align-items: start; }
 @media (max-width: 900px) { .content-split { grid-template-columns: 1fr; } }
-.section-label { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 1px; font-weight: 600; color: #888; margin: 0 0 1rem 0; }
+.section-label { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 1px; font-weight: 600; color: #888; margin: 0 0 1rem 0; border-bottom: 1px solid #e2e8f0; padding-bottom: 10px; }
 
-.data-card { background: #fff; border: 1px solid #e5e5e5; border-radius: 16px; padding: 2rem; margin-bottom: 1.5rem; box-shadow: 0 4px 6px rgba(0,0,0,0.02); }
-.data-card h3 { margin: 0 0 1.5rem 0; font-size: 1.2rem; }
-.metrics-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1.5rem; }
+/* EXECUTIVE PANEL STYLES */
+.executive-panel { background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 2rem; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); }
+
+/* Left Column - Data */
+.metrics-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1.5rem; margin-top: 15px;}
 .data-item { display: flex; flex-direction: column; gap: 0.5rem; padding-bottom: 1rem; border-bottom: 1px solid #f0f0f0; }
-.data-key { font-size: 0.85rem; font-weight: 600; color: #666; text-transform: uppercase; }
-.data-value { font-family: 'JetBrains Mono', monospace; font-size: 1.8rem; font-weight: 700; color: #111; line-height: 1; }
+.data-key { font-size: 0.85rem; font-weight: 600; color: #64748b; text-transform: uppercase; }
+.data-value { font-size: 1.8rem; font-weight: 700; color: #1e293b; line-height: 1; }
+.mono-text { font-family: 'JetBrains Mono', monospace; }
 
-.table-card { background: #fff; border: 1px solid #e5e5e5; border-radius: 12px; padding: 1.5rem; overflow: hidden; margin-bottom: 1.5rem; }
-.table-card h3 { font-size: 1.1rem; margin: 0 0 1rem 0; }
+/* Tables */
 .table-responsive { overflow-x: auto; }
 .modern-table { width: 100%; border-collapse: collapse; text-align: left; font-size: 0.9rem; }
-.modern-table th { background: #fafafa; padding: 1rem; font-weight: 600; color: #555; border-bottom: 2px solid #e5e5e5; white-space: nowrap; }
-.modern-table td { padding: 1rem; border-bottom: 1px solid #f0f0f0; }
-.modern-table tr:hover td { background: #fdfdfd; }
-.mono { font-family: 'JetBrains Mono', monospace; font-variant-numeric: tabular-nums; }
-
+.modern-table th { background: #f8fafc; padding: 12px; font-weight: 600; color: #475569; border-bottom: 2px solid #e2e8f0; white-space: nowrap; font-family: 'JetBrains Mono', monospace; font-size: 11px; text-transform: uppercase; }
+.modern-table td { padding: 12px; border-bottom: 1px solid #f1f5f9; }
 .empty-state { color: #666; }
 .raw-data { background: #f8fafc; padding: 1rem; border-radius: 8px; font-size: 0.85rem; overflow-x: auto; border: 1px solid #e5e5e5; }
 
-/* Right Column: Weight */
-.weight-card { background: #fafafa; border: 1px solid #e5e5e5; border-radius: 16px; padding: 2rem; position: sticky; top: 20px;}
-.weight-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; }
-.weight-header h3 { font-size: 1.1rem; font-weight: 700; margin: 0; }
-.weight-display { font-family: 'JetBrains Mono', monospace; font-weight: 700; background: #111; color: #fff; padding: 4px 10px; border-radius: 999px; font-size: 0.9rem; }
-.help-text { font-size: 0.9rem; color: #666; line-height: 1.4; margin-bottom: 2rem; }
+/* Right Column - Impact */
+.weight-card { position: sticky; top: 20px; }
+.gravity-label { font-size: 14px; font-weight: 700; color: #1e293b; text-transform: uppercase; letter-spacing: 1px; font-family: 'JetBrains Mono', monospace; }
 
-.slider-container { margin-bottom: 2.5rem; }
-.slider-labels { display: flex; justify-content: space-between; font-size: 0.8rem; font-weight: 600; color: #888; margin-bottom: 8px; padding: 0 5px; }
-.modern-slider { -webkit-appearance: none; width: 100%; height: 6px; border-radius: 999px; background: #e5e5e5; outline: none; transition: 0.2s; }
-.modern-slider::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 20px; height: 20px; border-radius: 50%; background: #1243e3; cursor: pointer; border: 2px solid #fff; box-shadow: 0 2px 5px rgba(0,0,0,0.2); transition: 0.2s; }
-.modern-slider::-webkit-slider-thumb:hover { transform: scale(1.1); }
+.slider-container { margin-bottom: 30px; }
+.slider-labels-top { display: flex; justify-content: space-between; margin-bottom: 12px; font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 700; text-transform: uppercase; color: #64748b; }
+.weight-display { color: #1243e3; }
+.premium-slider { -webkit-appearance: none; width: 100%; height: 6px; border-radius: 999px; background: #e5e5e5; outline: none; margin-bottom: 10px; }
+.premium-slider::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; width: 22px; height: 22px; border-radius: 50%; background: #1A365D; cursor: pointer; border: 4px solid #fff; box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
+.ticks-labels { display: flex; justify-content: space-between; padding: 0 5px; }
+.tick-item { flex: 1; text-align: center; }
+.tick-item:first-child { text-align: left; }
+.tick-item:last-child { text-align: right; }
+.tick-item span { font-family: 'JetBrains Mono', monospace; font-size: 10px; text-transform: uppercase; color: #64748b; font-weight: 700; }
 
-.justification-area { background: #fff; border: 1px solid #e5e5e5; border-radius: 12px; padding: 1.5rem; margin-bottom: 2rem; transition: border-color 0.3s; }
-.justification-area.is-active { border-color: #1243e3; }
-.just-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.8rem; }
-.just-header label { font-size: 0.9rem; font-weight: 600; }
+.reversibility-toggle { display: flex; align-items: center; gap: 12px; cursor: pointer; margin-bottom: 25px; }
+.reversibility-toggle input { display: none; }
+.checkbox-box { width: 24px; height: 24px; border: 2px solid #cbd5e1; display: inline-block; position: relative; transition: 0.2s; border-radius: 4px; }
+.reversibility-toggle input:checked ~ .checkbox-box { background-color: #1A365D; border-color: #1A365D; }
+.reversibility-toggle input:checked ~ .checkbox-box:after { content: ""; position: absolute; left: 7px; top: 3px; width: 5px; height: 11px; border: solid white; border-width: 0 2px 2px 0; transform: rotate(45deg); }
+.checkbox-text { font-family: 'Inter', sans-serif; font-size: 0.95rem; font-weight: 600; color: #1e293b; }
+
+.justification-area { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1.2rem; transition: 0.3s; margin-bottom: 1.5rem; }
+.justification-area.is-active { border-color: #cbd5e1; border-left: 4px solid #1A365D; }
+.just-header { display: flex; justify-content: space-between; margin-bottom: 0.8rem; }
+.just-header label { font-size: 0.9rem; font-weight: 700; }
 .req-badge { font-size: 0.75rem; font-weight: 700; color: #e11d48; background: #fff1f2; padding: 2px 6px; border-radius: 4px; }
 .ok-badge { font-size: 0.75rem; font-weight: 700; color: #16a34a; background: #f0fdf4; padding: 2px 6px; border-radius: 4px; }
-.modern-textarea { width: 100%; padding: 0.8rem; border: 1px solid #e5e5e5; border-radius: 8px; font-family: 'Inter', sans-serif; font-size: 0.9rem; resize: vertical; box-sizing: border-box; }
-.modern-textarea:focus { outline: none; border-color: #1243e3; box-shadow: 0 0 0 3px rgba(18,67,227,0.1); }
+.modern-textarea { width: 100%; padding: 0.8rem; border: 1px solid #e2e8f0; border-radius: 6px; font-family: 'Inter', sans-serif; resize: vertical; box-sizing: border-box; }
+.modern-textarea:focus { outline: none; border-color: #1A365D; }
 .just-placeholder p { margin: 0; font-size: 0.9rem; color: #888; text-align: center; font-style: italic; }
 
-.error-msg { color: #e11d48; font-size: 0.9rem; margin-bottom: 1rem; text-align: center; font-weight: 500; }
-
-.action-row { display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #e5e5e5; padding-top: 1.5rem; }
-.btn-primary { background: #111; color: #fff; border: 1px solid #111; padding: 1rem 1.5rem; border-radius: 6px; font-family: 'Inter', sans-serif; font-weight: 600; font-size: 1rem; cursor: pointer; transition: 0.2s; }
-.btn-primary:hover:not(:disabled) { background: #1243e3; border-color: #1243e3; }
-.btn-primary:disabled { background: #e5e5e5; color: #a0a0a0; border-color: #e5e5e5; cursor: not-allowed; }
+.action-row { display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #e2e8f0; padding-top: 1.5rem; }
+.btn-primary { background: #1A365D; color: #fff; border: none; padding: 1rem 1.5rem; border-radius: 6px; font-family: 'Inter', sans-serif; font-weight: 600; font-size: 1rem; cursor: pointer; transition: 0.2s; }
+.btn-primary:hover:not(:disabled) { background: #2563eb; }
+.btn-primary:disabled { background: #e2e8f0; color: #94a3b8; cursor: not-allowed; }
+.error-msg-box { color: #e11d48; font-size: 0.9rem; font-weight: 600; text-align: center; background: #fff1f2; padding: 10px; border-radius: 6px; margin-bottom: 15px;}
 </style>

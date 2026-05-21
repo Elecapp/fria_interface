@@ -3,7 +3,7 @@ import { onMounted, ref, computed } from "vue";
 import { useRouter } from "vue-router";
 import ProcessStepper from "../components/ProcessStepper.vue";
 
-//for first report building
+// for first report building
 import {
   DEFAULT_WEIGHT,
   DEFAULT_WEIGHT_JUSTIFICATION,
@@ -22,13 +22,13 @@ const metricsError = ref("");
 const plugins = ref([]);         
 const latestResults = ref(null); 
 
-//schemas
+// schemas
 const resultSchemas = ref({});
 
-//preserve existingReport generated with weights assigned by user
+// preserve existingReport generated with weights assigned by user
 const existingReport = ref({});
 
-//evaluation run
+// evaluation run
 const runId = ref("");
 const pdfBusy = ref(false);
 const pdfError = ref("");
@@ -36,18 +36,46 @@ const pdfError = ref("");
 // Accordion state
 const expandedGroup = ref("");
 
+// --- NUOVO STATO: DOMAIN REVERSIBILITY ---
+const domainReversibility = ref({});
+
 function toggleGroup(groupName) {
   expandedGroup.value = expandedGroup.value === groupName ? "" : groupName;
 }
 
-//Prettify
+// Prettify
 function prettify(s) {
   return String(s || "")
     .replaceAll("_", " ")
     .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-//Generate report
+// Salva la reversibilità del Dominio
+async function saveDomainReversibility(groupName) {
+  const isReversible = domainReversibility.value[groupName];
+  console.log(`Salvataggio Reversibilità per il dominio ${groupName}:`, isReversible);
+  
+  // Questa chiamata fetch servirà al backend Python per salvare il dato a livello di Dominio
+  try {
+    const payload = {
+      run_id: runId.value,
+      domain: groupName,
+      reversibility: isReversible
+    };
+    // De-commenteremo questa riga quando aggiorneremo Python
+    /*
+    await fetch("http://127.0.0.1:8000/results/save_domain_config", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    });
+    */
+  } catch (error) {
+    console.error("Errore nel salvataggio della reversibilità del dominio:", error);
+  }
+}
+
+// Generate report
 async function generatePdf() {
   pdfError.value = "";
   pdfBusy.value = true;
@@ -68,7 +96,7 @@ async function generatePdf() {
   }
 }
 
-//Metrics grouped by right
+// Metrics grouped by right
 const groupedMetrics = computed(() => {
   const out = {};
   for (const p of plugins.value || []) {
@@ -87,7 +115,7 @@ const groupedMetrics = computed(() => {
   return out;
 });
 
-//sorted group names for display
+// sorted group names for display
 const groupNames = computed(() => Object.keys(groupedMetrics.value).sort());
 
 async function fetchData() {
@@ -129,6 +157,12 @@ async function fetchData() {
       existingReport.value = {};
     }
 
+    // Inizializza lo stato di Reversibility per ogni dominio a false (o recuperalo dal report se esiste)
+    groupNames.value.forEach(group => {
+      // In futuro leggeremo existingReport.value.domain_configs[group].reversibility
+      domainReversibility.value[group] = false; 
+    });
+
     // Auto-expand first accordion group
     if (groupNames.value.length > 0) {
       expandedGroup.value = groupNames.value[0];
@@ -146,12 +180,9 @@ function isMetricReviewed(metricKey) {
     const m = report[metricKey];
     if (!m || typeof m !== "object") return false;
 
-    // Se è stato salvato un peso a livello della singola metrica
     if (m.user_weight_report !== undefined) return true;
-    // Se è stato salvato un peso nel sottomodulo globale
     if (m["(global)"] && m["(global)"].user_weight_report !== undefined) return true;
 
-    // Se è stato salvato un peso per almeno una delle feature sensibili
     for (const key in m) {
       if (m[key] && typeof m[key] === "object" && m[key].user_weight_report !== undefined) {
         return true;
@@ -161,8 +192,7 @@ function isMetricReviewed(metricKey) {
     return false;
 }
 
-
-//Preserve user saved weights and justification
+// Preserve user saved weights and justification
 function getReportRoot() { return existingReport.value?.results ?? existingReport.value ?? {}; }
 function getSavedGlobalWeight(metric) { return getReportRoot()?.[metric]?.["(global)"]?.user_weight_report ?? DEFAULT_WEIGHT; }
 function getSavedGlobalJustification(metric) { return getReportRoot()?.[metric]?.["(global)"]?.user_justification_report ?? DEFAULT_WEIGHT_JUSTIFICATION; }
@@ -273,7 +303,20 @@ onMounted(fetchData);
                 <span class="domain-icon">◈</span>
                 <h2>{{ prettify(group) }} Domain</h2>
               </div>
-              <span class="chevron" :class="{ 'rotated': expandedGroup === group }">▼</span>
+              
+              <div class="header-right">
+                <label class="reversibility-toggle" @click.stop>
+                  <input 
+                    type="checkbox" 
+                    v-model="domainReversibility[group]" 
+                    @change="saveDomainReversibility(group)"
+                  />
+                  <span class="checkbox-box"></span>
+                  <span class="checkbox-text">Reversibility (Yes)</span>
+                </label>
+                
+                <span class="chevron" :class="{ 'rotated': expandedGroup === group }">▼</span>
+              </div>
             </button>
 
             <div v-show="expandedGroup === group" class="accordion-body">
@@ -324,7 +367,7 @@ onMounted(fetchData);
 .hero-container { flex: 1; display: flex; justify-content: center; padding-top: 5vh; }
 .hero-content { max-width: 900px; width: 100%; padding: 0 2rem; }
 
-.main-title { font-family: 'Instrument Serif', serif; font-size: 4rem; color: #1243e3; margin: 0 0 1.5rem 0; text-align: center; }
+.main-title { font-family: 'Instrument Serif', serif; font-size: 4rem; color: #1A365D; margin: 0 0 1.5rem 0; text-align: center; }
 
 /* Workflow minimalista */
 .workflow-steps { display: flex; justify-content: center; align-items: center; gap: 1rem; flex-wrap: wrap; margin-bottom: 4rem; font-family: 'Inter', sans-serif; font-size: 0.9rem; color: #555; }
@@ -339,9 +382,10 @@ onMounted(fetchData);
 /* Accordion */
 .accordion-container { display: flex; flex-direction: column; gap: 1.5rem; }
 
-.accordion-section { background: #fff; border: 1px solid #e5e5e5; border-radius: 16px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.02); transition: 0.3s; }
+.accordion-section { background: #fff; border: 1px solid #e5e5e5; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.02); transition: 0.3s; }
 .accordion-section:hover { border-color: #d1d5db; }
 
+/* Header e Toggle Reversibility */
 .accordion-header { width: 100%; display: flex; justify-content: space-between; align-items: center; padding: 1.5rem 2rem; background: transparent; border: none; cursor: pointer; transition: background 0.2s; }
 .accordion-header.is-open { background: #f8fafc; border-bottom: 1px solid #e5e5e5; }
 .accordion-header:hover:not(.is-open) { background: #fafafa; }
@@ -350,16 +394,26 @@ onMounted(fetchData);
 .domain-icon { font-size: 1.2rem; color: #1243e3; }
 .accordion-header h2 { font-family: 'Instrument Serif', serif; font-size: 2.2rem; color: #111; margin: 0; }
 
+.header-right { display: flex; align-items: center; gap: 2rem; }
 .chevron { font-size: 0.8rem; color: #888; transition: transform 0.3s ease; }
 .chevron.rotated { transform: rotate(-180deg); color: #111; }
+
+/* Stile McKinsey per la Checkbox di Reversibility nel Domain */
+.reversibility-toggle { display: flex; align-items: center; gap: 10px; cursor: pointer; }
+.reversibility-toggle input { display: none; }
+.checkbox-box { width: 22px; height: 22px; border: 2px solid #cbd5e1; display: inline-block; position: relative; transition: 0.2s; border-radius: 4px; background: #fff; }
+.reversibility-toggle input:checked ~ .checkbox-box { background-color: #1A365D; border-color: #1A365D; }
+.reversibility-toggle input:checked ~ .checkbox-box:after { content: ""; position: absolute; left: 6px; top: 2px; width: 4px; height: 10px; border: solid white; border-width: 0 2px 2px 0; transform: rotate(45deg); }
+.checkbox-text { font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 700; color: #1e293b; text-transform: uppercase; letter-spacing: 0.5px; }
+
 
 .accordion-body { padding: 2rem; background: #fff; }
 
 /* Metrics Grid Inside Accordion */
 .metrics-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(350px, 1fr)); gap: 1rem; }
 
-.metric-action-card { display: flex; align-items: center; justify-content: space-between; padding: 1.2rem 1.5rem; border: 1px solid #e5e5e5; border-radius: 12px; cursor: pointer; transition: all 0.2s ease; background: #fff; }
-.metric-action-card:hover { border-color: #111; box-shadow: 0 4px 12px rgba(0,0,0,0.05); transform: translateY(-2px); }
+.metric-action-card { display: flex; align-items: center; justify-content: space-between; padding: 1.2rem 1.5rem; border: 1px solid #e5e5e5; border-radius: 8px; cursor: pointer; transition: all 0.2s ease; background: #fff; }
+.metric-action-card:hover { border-color: #1A365D; box-shadow: 0 4px 12px rgba(0,0,0,0.05); transform: translateY(-2px); }
 
 .card-content h3 { font-family: 'Inter', sans-serif; font-size: 1.05rem; font-weight: 600; color: #111; margin: 0 0 0.4rem 0; }
 .review-tag { font-family: 'Inter', sans-serif; font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; color: #b45309; background: #fef3c7; padding: 3px 8px; border-radius: 4px; }
@@ -369,22 +423,23 @@ onMounted(fetchData);
 }
 
 .arrow-icon { color: #999; font-size: 1.2rem; transition: 0.2s; }
-.metric-action-card:hover .arrow-icon { color: #111; transform: translateX(4px); }
+.metric-action-card:hover .arrow-icon { color: #1A365D; transform: translateX(4px); }
 
 /* Bottom Nav */
-.bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; height: 80px; background: #fff; border-top: 1px solid #e5e5e5; display: flex; align-items: center; justify-content: space-between; padding: 0 2rem; z-index: 10; }
+.bottom-nav { position: fixed; bottom: 0; left: 0; right: 0; height: 80px; background: #fff; border-top: 1px solid #e5e5e5; display: flex; align-items: center; justify-content: space-between; padding: 0 2rem; z-index: 10; box-shadow: 0 -4px 12px rgba(0,0,0,0.02); }
 .nav-right { display: flex; align-items: center; gap: 1.5rem; }
 .error-text { color: #e11d48; font-size: 0.9rem; font-weight: 500; }
 .nav-btn { font-family: 'Inter', sans-serif; font-weight: 600; padding: 0.8rem 1.5rem; border-radius: 4px; cursor: pointer; transition: 0.2s; border: 1px solid transparent; }
 .ghost { background: transparent; color: #666; border-color: #e5e5e5; }
-.ghost:hover { border-color: #111; color: #111; }
-.primary { background: #111; color: #fff; border-color: #111; }
-.primary:hover:not(:disabled) { background: #1243e3; border-color: #1243e3; }
+.ghost:hover { border-color: #1A365D; color: #1A365D; }
+.primary { background: #1A365D; color: #fff; border-color: #1A365D; }
+.primary:hover:not(:disabled) { background: #2563eb; border-color: #2563eb; }
 .primary:disabled { background: #e5e5e5; color: #a0a0a0; border-color: #e5e5e5; cursor: not-allowed; }
 
 @media (max-width: 600px) {
   .metrics-grid { grid-template-columns: 1fr; }
   .accordion-header { flex-direction: column; align-items: flex-start; gap: 1rem; }
+  .header-right { width: 100%; justify-content: space-between; margin-top: 10px; }
   .accordion-header h2 { font-size: 1.8rem; }
 }
 </style>

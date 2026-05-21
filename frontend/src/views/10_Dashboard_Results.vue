@@ -1,6 +1,6 @@
 <script setup>
-import { computed, onMounted, ref, shallowRef} from "vue";
-import { useRoute, useRouter} from "vue-router";
+import { computed, onMounted, ref, shallowRef } from "vue";
+import { useRoute, useRouter } from "vue-router";
 
 import ConditionalNestedView2 from "../components/metrics/ConditionalNestedView2.vue";
 import ScalarMapView from "../components/metrics/ScalarMapView.vue";
@@ -38,6 +38,16 @@ function handleChildSafeBack() {
 
 const metricObj = computed(() => allResults.value?.[metricKey.value] ?? null);
 const metricSchemaFromBackend = computed(() => allSchemas.value?.[metricKey.value]?.schema ?? "unknown");
+
+const likelihoodScore = computed(() => {
+  if (!metricObj.value) return "N/A";
+  if (metricObj.value.final_score !== undefined) {
+    return typeof metricObj.value.final_score === 'number' 
+      ? metricObj.value.final_score.toFixed(3) 
+      : metricObj.value.final_score;
+  }
+  return "N/A";
+});
 
 const renderer = computed(() => {
   switch (metricSchemaFromBackend.value) {
@@ -96,20 +106,31 @@ onMounted(async () => {
       <button class="btn-ghost" @click="handleBack">← Go Back</button>
     </div>
 
-    <component
-      v-else-if="renderer && metricObj"
-      :is="renderer"
-      :metric-key="metricKey"
-      ref="metricViewRef"
-      :metric-obj="metricObj"
-      :schema-type="metricSchemaFromBackend"
-      :run-id="runId"                 
-      @go-back-safe="handleChildSafeBack"
-    />
+    <div v-else-if="metricObj" class="content-container">
+      <div class="top-navigation">
+        <button class="btn-ghost btn-back" @click="handleBack">← Back to Dashboard</button>
+      </div>
+      
+      <div class="executive-header">
+        <h1 class="metric-title">{{ metricKey.replace(/_/g, ' ') }}</h1>
+        <div class="badge-likelihood">
+          <span class="badge-label">Likelihood</span>
+          <span class="badge-value">{{ likelihoodScore }}</span>
+        </div>
+      </div>
 
-    <div v-else class="fullscreen-msg">
-      <button class="btn-ghost" @click="handleBack" style="margin-bottom: 2rem;">← Back to Dashboard</button>
-      <div class="card">
+      <component
+        v-if="renderer"
+        :is="renderer"
+        :metric-key="metricKey"
+        ref="metricViewRef"
+        :metric-obj="metricObj"
+        :schema-type="metricSchemaFromBackend"
+        :run-id="runId"                 
+        @go-back-safe="handleChildSafeBack"
+      />
+
+      <div v-else class="fallback-card">
         <h3>Raw output</h3>
         <p class="muted">(No renderer for schema: <strong>{{ metricSchemaFromBackend }}</strong>)</p>
         <pre class="pre">{{ JSON.stringify(metricObj, null, 2) }}</pre>
@@ -119,33 +140,76 @@ onMounted(async () => {
 </template>
 
 <style scoped>
+@import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=JetBrains+Mono:wght@400;700&family=Inter:wght@400;600;700&display=swap');
+
 .wrapper {
   min-height: 100vh;
   background-color: #faf9f8;
   font-family: 'Inter', sans-serif;
+  padding: 40px 20px;
 }
 
-.fullscreen-msg {
-  height: 100vh;
+.content-container {
+  max-width: 1300px;
+  margin: 0 auto;
+}
+
+.top-navigation { margin-bottom: 24px; }
+.btn-ghost { background: transparent; border: none; font-weight: 600; cursor: pointer; color: #64748b; font-family: 'Inter', sans-serif; transition: 0.2s; }
+.btn-ghost:hover { color: #1e293b; text-decoration: underline; }
+
+/* EXECUTIVE HEADER - STILE MCKINSEY */
+.executive-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-bottom: 40px;
+  border-bottom: 2px solid #1243e3;
+  padding-bottom: 20px;
+}
+
+.metric-title {
+  font-family: 'Instrument Serif', serif;
+  font-size: 56px;
+  font-weight: 600;
+  color: #1243e3;
+  margin: 0;
+  text-transform: capitalize;
+  line-height: 1;
+}
+
+.badge-likelihood {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  color: #666;
+  align-items: flex-end;
+  background: #1243e3;
+  color: white;
+  padding: 15px 30px;
 }
 
+.badge-label {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  color: #cbd5e1;
+  margin-bottom: 4px;
+}
+
+.badge-value {
+  font-family: 'JetBrains Mono', monospace;
+  font-size: 36px;
+  font-weight: 700;
+  color: #fff;
+  line-height: 1;
+}
+
+/* STATI DI CARICAMENTO E FALLBACK */
+.fullscreen-msg { height: 80vh; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #666; }
 .error-msg { color: #e11d48; }
-
-.spinner {
-  width: 40px; height: 40px; margin-bottom: 1rem;
-  border: 3px solid #e5e5e5; border-top: 3px solid #1243e3; border-radius: 50%;
-  animation: spin 1s linear infinite;
-}
-
+.spinner { width: 40px; height: 40px; margin-bottom: 1rem; border: 3px solid #e5e5e5; border-top: 3px solid #1243e3; border-radius: 50%; animation: spin 1s linear infinite; }
 @keyframes spin { 100% { transform: rotate(360deg); } }
-
-.card { background: #fff; border: 1px solid #e5e5e5; border-radius: 12px; padding: 2rem; max-width: 800px; width: 90%; text-align: left; }
-.pre { background: #f8fafc; padding: 1rem; border-radius: 8px; font-size: 0.85rem; overflow-x: auto; font-family: 'JetBrains Mono', monospace; }
+.fallback-card { background: #fff; border: 1px solid #e5e5e5; padding: 2rem; margin-top: 20px; }
+.pre { background: #f8fafc; padding: 1rem; font-size: 0.85rem; overflow-x: auto; font-family: 'JetBrains Mono', monospace; }
 .muted { color: #888; font-size: 0.9rem; }
-.btn-ghost { background: transparent; border: none; font-weight: 600; cursor: pointer; color: #111; font-family: 'Inter', sans-serif; }
 </style>

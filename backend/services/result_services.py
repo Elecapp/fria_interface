@@ -16,15 +16,20 @@ def load_plugin_registry(directory: Path) -> dict:
     return json.loads(path.read_text(encoding="utf-8"))
 
 #Final Score computation
+# Final Score computation (Aggiornato per Gravity 0-4)
 def clamp_score(score: float) -> float:
     return min(10.0, max(0.0, score))
 
-def compute_total_score(metric_value: Any, user_weight: Any) -> Optional[float]:
+def compute_total_score(metric_value: Any, user_gravity: Any) -> Optional[float]:
     try:
         metric = float(metric_value)
-        weight = float(user_weight)
+        gravity = float(user_gravity)
 
-        weighted_score = metric * (weight / 5.0)
+        # Il valore neutro (Medium) ora è 2. 
+        # Gravity 2 -> moltiplicatore 1.0 (nessuna penalità)
+        # Gravity 4 -> moltiplicatore 2.0 (impatto raddoppiato)
+        # Gravity 0 -> moltiplicatore 0.0 (impatto nullo)
+        weighted_score = metric * (gravity / 2.0)
 
         return round(clamp_score(weighted_score), 3)
 

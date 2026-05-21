@@ -15,7 +15,8 @@ const total_score = computed(() => {
   const v = props.node?.total_score_report;
   return v !== undefined && v !== null ? Number(v).toFixed(2) : "-";
 });
-const weight = computed(() => node.value?.user_weight_report ?? "-");
+const gravity = computed(() => node.value?.gravity_report ?? "0");
+const reversibility = computed(() => node.value?.reversibility_report ? "YES" : "NO");
 const justification = computed(() => node.value?.user_justification_report ?? "");
 
 const metricDescription = computed(() => 

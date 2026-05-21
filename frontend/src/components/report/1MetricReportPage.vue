@@ -19,7 +19,7 @@ const props = defineProps({
     <div class="title-section">
       <h1 class="h1">Interpretation Guide</h1>
       <h2 class="h2">
-        A reference key to interpreting the quantitative results obtained during the algorithmic evaluation.
+        A reference key to interpreting the quantitative results and the Contextual Impact (Gravity) obtained during the algorithmic evaluation.
       </h2>
     </div>
 

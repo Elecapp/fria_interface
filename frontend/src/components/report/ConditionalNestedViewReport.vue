@@ -16,7 +16,10 @@ const total_score = computed(() => {
   const v = props.node?.total_score_report;
   return v !== undefined && v !== null ? Number(v).toFixed(2) : "-";
 });
-const weight = computed(() => node.value?.user_weight_report ?? "-");
+
+// Estrazione nuovi dati Executive dal JSON del backend
+const gravity = computed(() => node.value?.gravity_report ?? "0");
+const reversibility = computed(() => node.value?.reversibility_report ? "YES" : "NO");
 const justification = computed(() => node.value?.user_justification_report ?? "");
 
 const metricDescription = computed(() => 
@@ -51,11 +54,12 @@ const contextRows = computed(() => {
   }));
 });
 
+// Intercettiamo "Final Score" e lo convertiamo in "Likelihood" per la stampa
 const summaryRows = computed(() => {
   return Object.entries(summary.value || {})
     .filter(([key]) => key !== "Final Score")
     .map(([key, value]) => ({
-      label: prettifyLabel(key),
+      label: (key.toLowerCase() === "final score") ? "Likelihood" : prettifyLabel(key),
       value: formatValue(value),
     }));
 });
@@ -160,9 +164,15 @@ const gaugeTicks = computed(() => {
 
           <section class="info-section scores-row">
              <div class="score-pill">
-               <span class="p-label">Weight</span>
-               <span class="p-value">{{ weight }}</span>
+               <span class="p-label">Gravity</span>
+               <span class="p-value">{{ gravity }}</span>
              </div>
+             
+             <div class="score-pill" :class="{ 'red-pill': reversibility === 'NO', 'green-pill': reversibility === 'YES' }">
+               <span class="p-label">Reversibility</span>
+               <span class="p-value">{{ reversibility }}</span>
+             </div>
+
              <div class="score-pill blue">
                <span class="p-label">Feature Score</span>
                <span class="p-value">{{ total_score }}</span>
@@ -201,11 +211,11 @@ const gaugeTicks = computed(() => {
   font-size: 10px; font-weight: 600; color: #64748b; letter-spacing: 0.5px;
 }
 .sep { margin: 0 8px; color: #cbd5e1; }
-.brand { color: #1e293b; font-weight: 800; }
+.brand { color: #1A365D; font-weight: 800; }
 
 /* Title Section */
 .title-section { margin-bottom: 10mm; }
-.domain-tag { font-size: 10px; font-weight: 800; text-transform: uppercase; color: #3b82f6; letter-spacing: 1px; margin-bottom: 4px; }
+.domain-tag { font-size: 10px; font-weight: 800; text-transform: uppercase; color: #1A365D; letter-spacing: 1px; margin-bottom: 4px; }
 .page-title { font-family: 'Instrument Serif', serif; font-size: 42px; line-height: 1.1; margin: 0; font-weight: 400; color: #1e293b; }
 .feature-tag { margin-top: 8px; font-size: 14px; color: #475569; padding: 6px 12px; background: #f8fafc; display: inline-block; border-radius: 4px; border: 1px solid #e2e8f0; }
 
@@ -225,16 +235,21 @@ const gaugeTicks = computed(() => {
 .s-value { font-weight: 700; color: #1e293b; }
 .mono { font-family: 'JetBrains Mono', monospace; }
 
-/* Score Pills */
-.scores-row { display: flex; gap: 10px; margin-top: 10mm; }
-.score-pill { flex: 1; background: #f8fafc; padding: 12px; border-radius: 8px; border: 1px solid #e2e8f0; display: flex; flex-direction: column; align-items: center; }
+/* Score Pills Modificate per Reversibility */
+.scores-row { display: flex; gap: 8px; margin-top: 10mm; }
+.score-pill { flex: 1; background: #f8fafc; padding: 12px 6px; border-radius: 8px; border: 1px solid #e2e8f0; display: flex; flex-direction: column; align-items: center; }
 .score-pill.blue { background: #eff6ff; border-color: #dbeafe; }
+.score-pill.red-pill { background: #fef2f2; border-color: #fecaca; }
+.score-pill.red-pill .p-value { color: #dc2626; }
+.score-pill.green-pill { background: #f0fdf4; border-color: #bbf7d0; }
+.score-pill.green-pill .p-value { color: #16a34a; }
+
 .p-label { font-size: 9px; font-weight: 800; text-transform: uppercase; color: #64748b; }
-.p-value { font-size: 20px; font-weight: 800; color: #1e293b; }
+.p-value { font-size: 18px; font-weight: 800; color: #1e293b; margin-top: 4px;}
 .score-pill.blue .p-value { color: #1d4ed8; }
 
 /* Justification */
-.justification-box { background: #fdfdfd; border-left: 3px solid #3b82f6; padding: 15px; margin-top: 5mm; }
+.justification-box { background: #fdfdfd; border-left: 3px solid #1A365D; padding: 15px; margin-top: 5mm; }
 .justification-text { font-size: 12px; line-height: 1.5; color: #475569; margin: 0; }
 
 /* Gauge Styles */
