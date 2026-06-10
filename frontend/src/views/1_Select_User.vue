@@ -1,225 +1,108 @@
 <script setup>
-import { ref } from "vue";
 import { useRouter } from "vue-router";
 import ProcessStepper from "../components/ProcessStepper.vue";
 
 const router = useRouter();
-const role = ref("");
 
-function goBack() {
-  router.back();
+const userProfiles = [
+  {
+    id: "expert",
+    title: "AI Expert / Auditor",
+    description: "Technical evaluator profile. You will review statistical and deep data metrics to establish the formal mathematical algorithmic impact.",
+    available: true
+  },
+  {
+    id: "policymaker",
+    title: "Policy Maker",
+    description: "High-level regulatory profile. Focused primarily on institutional legal compliance, standard governance framework, and social impact.",
+    available: false
+  },
+  {
+    id: "citizen",
+    title: "Affected Citizen",
+    description: "End-user perspective profile. Evaluates algorithmic impact based on human rights perceptions and direct automated decisions.",
+    available: false
+  }
+];
+
+function selectProfile(profile) {
+  if (profile.available) {
+    router.push("/ud");
+  }
 }
 
-function goToEvaluation(selectedRole) {
-  role.value = selectedRole;
-  router.push({
-    path: "/ud",
-    query: { role: selectedRole },
-  });
+function goBack() {
+  router.push("/");
 }
 </script>
 
 <template>
   <div class="page-layout">
     <header class="top-nav">
-      <div class="nav-brand">FRIA Project</div>
+      <div class="nav-brand">FRIA Project | Profile Selection</div>
     </header>
 
     <main class="hero-container">
       <div class="hero-content">
+        <ProcessStepper :current-step="0" />
         
-        <ProcessStepper :current-step="1" />
-        
-        <!-- Pulsante Indietro minimalista -->
-        <button class="back-button" @click="goBack" aria-label="Go back">
-          ← Back
-        </button>
+        <button class="back-button" @click="goBack">← Back</button>
 
-        <!-- Titolo principale della pagina -->
-        <h1 class="main-title">Choose the evaluator profile</h1>
-        
+        <h1 class="main-title">Choose your Evaluator Profile</h1>
         <p class="description">
-          Select the type of user who will run the evaluation. The system can then
-          adapt the flow, guidance, and level of technical detail.
+          For this usability testing session, you are required to audit the system assuming a technical role. 
+          Other stakeholder profiles are locked in this experimental build.
         </p>
 
-        <!-- Lista in stile "Editorial" -->
-        <div class="editorial-list">
-          
-          <button class="step-row" @click="goToEvaluation('expert')" type="button">
-            <div class="step-number">01</div>
-            <div class="step-text">
-              <h3 class="step-title">Expert</h3>
-              <p class="step-desc">
-                For users familiar with AI systems, model evaluation, and compliance concepts.
-              </p>
+        <div class="profiles-grid">
+          <div 
+            v-for="profile in userProfiles" 
+            :key="profile.id"
+            class="profile-card"
+            :class="{ 'is-disabled': !profile.available }"
+            @click="selectProfile(profile)"
+          >
+            <h3>{{ profile.title }}</h3>
+            <p>{{ profile.description }}</p>
+            
+            <div class="status-badge">
+              <span v-if="profile.available" class="badge-active">Click to select →</span>
+              <span v-else class="badge-locked">Locked for this test</span>
             </div>
-          </button>
-
-          <button class="step-row" @click="goToEvaluation('non_expert')" type="button">
-            <div class="step-number">02</div>
-            <div class="step-text">
-              <h3 class="step-title">Non-expert</h3>
-              <p class="step-desc">
-                For users who need a guided workflow with simpler explanations and less jargon.
-              </p>
-            </div>
-          </button>
-
-          <button class="step-row" @click="goToEvaluation('technical_auditor')" type="button">
-            <div class="step-number">03</div>
-            <div class="step-text">
-              <h3 class="step-title">Technical auditor</h3>
-              <p class="step-desc">
-                For auditors who need structured evidence, metrics inspection, and reporting support.
-              </p>
-            </div>
-          </button>
-
+          </div>
         </div>
+
       </div>
     </main>
   </div>
 </template>
 
 <style scoped>
-.page-layout {
-  min-height: 100vh;
-  background-color: #faf9f8;
-  display: flex;
-  flex-direction: column;
-}
+.page-layout { min-height: 100vh; background-color: #faf9f8; display: flex; flex-direction: column; font-family: 'Inter', sans-serif; }
+.top-nav { height: 50px; background-color: #1a1a1a; display: flex; align-items: center; padding: 0 2rem; }
+.nav-brand { color: #fff; font-weight: 600; font-size: 0.9rem; }
 
-.top-nav {
-  height: 50px;
-  background-color: #1a1a1a;
-  display: flex;
-  align-items: center;
-  padding: 0 2rem;
-}
+.hero-container { flex: 1; display: flex; justify-content: center; padding-top: 5vh; }
+.hero-content { max-width: 1000px; width: 100%; padding: 0 2rem; }
 
-.nav-brand {
-  color: #ffffff;
-  font-family: 'Inter', sans-serif;
-  font-weight: 600;
-  font-size: 0.9rem;
-  letter-spacing: 0.5px;
-}
+.back-button { background: none; border: none; color: #888; cursor: pointer; margin-bottom: 1.5rem; font-weight: 600; }
+.back-button:hover { color: #111; }
 
-.hero-container {
-  flex: 1;
-  display: flex;
-  justify-content: center;
-  align-items: flex-start;
-  padding-top: 5vh; /* Leggermente ridotto per far spazio al bottone back */
-  padding-bottom: 4rem;
-}
+.main-title { font-family: 'Instrument Serif', serif; font-size: 4rem; color: #1A365D; margin-bottom: 1rem; }
+.description { font-size: 1.1rem; color: #555; max-width: 700px; margin-bottom: 3rem; line-height: 1.6; }
 
-.hero-content {
-  max-width: 800px;
-  width: 100%;
-  padding: 0 2rem;
-}
+.profiles-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 1.5rem; }
 
-/* =========================================
-   STILE PULSANTE INDIETRO
-   ========================================= */
-.back-button {
-  background: none;
-  border: none;
-  font-family: 'Inter', sans-serif;
-  font-size: 0.95rem;
-  font-weight: 500;
-  color: #888888;
-  cursor: pointer;
-  padding: 0;
-  margin-bottom: 2rem; /* Distanza dal titolo principale */
-  display: inline-flex;
-  align-items: center;
-  transition: color 0.2s ease, transform 0.2s ease;
-}
+.profile-card { background: #fff; border: 2px solid #e5e5e5; padding: 2.5rem 2rem; border-radius: 12px; cursor: pointer; transition: all 0.2s ease; display: flex; flex-direction: column; }
+.profile-card:not(.is-disabled):hover { border-color: #1243e3; transform: translateY(-4px); box-shadow: 0 12px 24px rgba(18, 67, 227, 0.1); }
 
-.back-button:hover {
-  color: #111111; /* Diventa scuro al passaggio del mouse */
-  transform: translateX(-4px); /* Si sposta leggermente verso sinistra per indicare l'azione indietro */
-}
+.is-disabled { opacity: 0.5; cursor: not-allowed; background: #f3f4f6; border-color: #e5e7eb; }
+.is-disabled:hover { transform: none; box-shadow: none; }
 
-/* Tipografia Intestazione */
-.main-title {
-  font-family: 'Instrument Serif', serif;
-  font-size: 4rem;
-  color: #1243e3;
-  font-weight: 400;
-  margin-bottom: 1rem;
-  line-height: 1.1;
-}
+.profile-card h3 { font-size: 1.4rem; color: #111; margin: 0 0 1rem 0; }
+.profile-card p { font-size: 0.95rem; color: #666; margin: 0 0 2rem 0; line-height: 1.5; flex-grow: 1; }
 
-.description {
-  font-family: 'Inter', sans-serif;
-  font-size: 1.2rem;
-  color: #555555;
-  line-height: 1.6;
-  margin-bottom: 4rem;
-  max-width: 700px;
-}
-
-/* Lista Editoriale Interattiva */
-.editorial-list {
-  border-bottom: 1px solid #e5e5e5;
-}
-
-.step-row {
-  display: flex;
-  align-items: flex-start;
-  width: 100%;
-  padding: 2.5rem 0;
-  background: transparent;
-  border: none;
-  border-top: 1px solid #e5e5e5;
-  text-align: left;
-  cursor: pointer;
-  transition: all 0.3s ease;
-}
-
-.step-number {
-  font-family: 'Inter', sans-serif;
-  font-size: 0.9rem;
-  font-weight: 500;
-  color: #888888;
-  width: 80px;
-  padding-top: 0.5rem;
-  transition: color 0.3s ease;
-}
-
-.step-text {
-  flex: 1;
-  transition: transform 0.3s ease;
-}
-
-.step-title {
-  font-family: 'Instrument Serif', serif;
-  font-size: 2.2rem;
-  color: #111111;
-  font-weight: 400;
-  margin: 0 0 0.8rem 0;
-  letter-spacing: 0.5px;
-  transition: color 0.3s ease;
-}
-
-.step-desc {
-  font-family: 'Inter', sans-serif;
-  font-size: 1.1rem;
-  color: #444444;
-  line-height: 1.6;
-  margin: 0;
-}
-
-.step-row:hover .step-title,
-.step-row:hover .step-number {
-  color: #1243e3;
-}
-
-.step-row:hover .step-text {
-  transform: translateX(10px);
-}
+.status-badge { margin-top: auto; border-top: 1px solid #f0f0f0; padding-top: 1rem; font-size: 0.85rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.5px; }
+.badge-active { color: #1243e3; }
+.badge-locked { color: #9ca3af; }
 </style>

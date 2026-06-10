@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref } from "vue";
+import { computed, ref, onMounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
 
 import {
@@ -73,12 +73,31 @@ const summaryRows = computed(() => {
   return rows;
 });
 
-// --- STATI EXECUTIVE ---
+// --- STATI EXECUTIVE E RECUPERO DEI SALVATAGGI ---
 const MIN_JUST_LENGTH = 10;
 const DEFAULT_GRAVITY = 0;
 const metricGravity = ref(DEFAULT_GRAVITY);
 const metricReversibility = ref(false);
 const metricJustification = ref("");
+
+// FIX: Ripristino dei dati dal Genitore invece di resettare a zero!
+onMounted(() => {
+  let savedData = props.metricObj || {};
+  
+  // CardMap salva spesso i dati dentro la chiave (global)
+  if (savedData["(global)"]) {
+    savedData = { ...savedData, ...savedData["(global)"] };
+  }
+
+  const savedGrav = savedData.gravity ?? savedData.gravity_report ?? savedData.user_weight ?? savedData.user_weight_report;
+  if (savedGrav !== undefined) metricGravity.value = Number(savedGrav);
+
+  const savedRev = savedData.reversibility ?? savedData.reversibility_report;
+  if (savedRev !== undefined) metricReversibility.value = !!savedRev;
+
+  const savedJust = savedData.user_justification ?? savedData.user_justification_report ?? savedData.justification;
+  if (savedJust !== undefined) metricJustification.value = String(savedJust);
+});
 
 const gravityLabels = {
   0: "0 - None",
@@ -174,7 +193,6 @@ async function goBackSafely() {
 }
 defineExpose({ goBackSafely });
 </script>
-
 <template>
   <div class="result-layout">
     

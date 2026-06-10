@@ -1,5 +1,5 @@
 <script setup>
-import { computed, ref, watch } from "vue";
+import { computed, ref, watch, onMounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import {
   DEFAULT_WEIGHT_JUSTIFICATION,
@@ -68,7 +68,7 @@ const summaryRows = computed(() => {
   const rows = [];
   for (const [k, v] of Object.entries(o)) {
     if (isListOfDicts(v)) continue; 
-    if (k === "final_score" || k === "gravity" || k === "reversibility") continue; // Filtra chiavi di sistema
+    if (k === "final_score" || k === "gravity" || k === "reversibility") continue; 
     
     const scalar = isScalar(v);
     const smallArray = Array.isArray(v) && v.length <= 50 && v.every((x) => ["string", "number", "boolean"].includes(typeof x));
@@ -93,12 +93,30 @@ const tableBlocks = computed(() => {
   return blocks;
 });
 
-// --- STATI EXECUTIVE ---
+// --- STATI EXECUTIVE E RECUPERO DEI SALVATAGGI ---
 const MIN_JUST_LENGTH = 10;
 const DEFAULT_GRAVITY = 0;
 const metricGravity = ref(DEFAULT_GRAVITY);
 const metricReversibility = ref(false);
 const metricJustification = ref("");
+
+// FIX: Quando il componente viene caricato, leggiamo i dati veri invece di azzerare!
+onMounted(() => {
+  let savedData = props.metricObj || {};
+  // Cerchiamo anche dentro (global) se il backend li ha nidificati lì
+  if (savedData["(global)"]) {
+    savedData = { ...savedData, ...savedData["(global)"] };
+  }
+
+  const savedGrav = savedData.gravity ?? savedData.gravity_report ?? savedData.user_weight ?? savedData.user_weight_report;
+  if (savedGrav !== undefined) metricGravity.value = Number(savedGrav);
+
+  const savedRev = savedData.reversibility ?? savedData.reversibility_report;
+  if (savedRev !== undefined) metricReversibility.value = !!savedRev;
+
+  const savedJust = savedData.user_justification ?? savedData.user_justification_report ?? savedData.justification;
+  if (savedJust !== undefined) metricJustification.value = String(savedJust);
+});
 
 const gravityLabels = {
   0: "0 - None",
@@ -133,7 +151,6 @@ function buildSavePayload() {
     userJustification: finalGravity === DEFAULT_GRAVITY ? DEFAULT_WEIGHT_JUSTIFICATION : String(metricJustification.value || "").trim(),
   });
 
-  // Aggiungiamo i dati per il nuovo backend Python
   payload.gravity = finalGravity;
   payload.reversibility = metricReversibility.value;
 

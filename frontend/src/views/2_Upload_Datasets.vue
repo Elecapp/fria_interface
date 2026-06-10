@@ -4,39 +4,21 @@ import { useRouter } from "vue-router";
 import ProcessStepper from "../components/ProcessStepper.vue";
 
 const router = useRouter();
-const loading = ref(false);
-const error = ref("");
 const selectedDataset = ref(null);
 
-// Definiamo i 4 dataset dell'esperimento
-const experimentDatasets = [
+// I due scenari esatti per l'esperimento controllato (Toy Branch)
+const toyScenarios = [
   {
-    id: "mutui_standard",
-    name: "Bank Loans AI",
-    file: "dataset_mutui_banca_ai.csv",
-    description: "Standard dataset for mortgage approvals. Contains financial and demographic data.",
-    type: "Financial"
+    id: "Hiring_good", // Deve combaciare ESATTAMENTE col nome del file JSON
+    name: "Scenario Ottimale (Good)",
+    description: "Sistema di screening dei curricula con parametri eccellenti di equità e privacy. Le metriche non rilevano discriminazioni evidenti.",
+    type: "HR / Recruitment - Fair"
   },
   {
-    id: "mutui_bias",
-    name: "Bank Loans AI (Biased)",
-    file: "dataset_mutui_banca_ai_BIAS.csv",
-    description: "Modified version of the mortgage dataset with intentional demographic bias.",
-    type: "Financial / Bias Test"
-  },
-  {
-    id: "hiring_standard",
-    name: "Hiring AI Synthetic",
-    file: "hiring_ai_synthetic_dataset.csv",
-    description: "Synthetic dataset for recruitment screening. Evaluates candidate skills and background.",
-    type: "HR / Recruitment"
-  },
-  {
-    id: "hiring_bias",
-    name: "Hiring AI Synthetic (Biased)",
-    file: "hiring_ai_synthetic_dataset_BIAS.csv",
-    description: "Recruitment dataset with historical bias patterns for fairness testing.",
-    type: "HR / Bias Test"
+    id: "Hiring_bad", // Deve combaciare ESATTAMENTE col nome del file JSON
+    name: "Scenario Critico (Bad)",
+    description: "Sistema di screening dei curricula che presenta alcune criticità. Mostra disparità nei tassi di assunzione per età e genere.",
+    type: "HR / Recruitment - Biased"
   }
 ];
 
@@ -44,43 +26,21 @@ const canGoNext = computed(() => selectedDataset.value !== null);
 
 function selectDataset(ds) {
   selectedDataset.value = ds;
-  error.value = "";
 }
 
-async function goNext() {
+function goNext() {
   if (!selectedDataset.value) return;
 
-  loading.value = true;
-  error.value = "";
-
-  try {
-    // Nota: In un esperimento reale, qui inviamo al backend il nome del file 
-    // o simuliamo l'upload. Assumiamo che i file siano già nella cartella 'data' del backend.
-    const formData = new FormData();
-    // Qui andrebbe la logica per "caricare" il file selezionato. 
-    // Se i file sono locali, dovresti comunque averli caricati una volta o usare un endpoint dedicato.
-    
-    // Per ora simuliamo la conferma al backend
-    const res = await fetch("http://127.0.0.1:8000/upload-experiment-dataset", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ filename: selectedDataset.value.file })
-    });
-
-    if (!res.ok) throw new Error("Failed to initialize dataset.");
-
-    router.push("/bohe"); // Prossimo step: One-Hot Encoding / Post-processing
-  } catch (e) {
-    // Se l'endpoint dedicato non esiste ancora, usiamo il log per debug
-    console.log("Simulazione: dataset selezionato ->", selectedDataset.value.file);
-    router.push("/bohe"); 
-  } finally {
-    loading.value = false;
-  }
+  // IL TRUCCO È QUI: Nessun caricamento API, saltiamo diretti alla vista 8 (Dashboard)
+  // passando l'ID (Hiring_good o Hiring_bad) al router.
+  router.push({ 
+    name: "Dashboard", 
+    params: { runId: selectedDataset.value.id } 
+  });
 }
 
 function goBack() {
-  router.push("/su");
+  router.push("/"); // Modifica a piacimento se hai una home page diversa
 }
 </script>
 
@@ -96,16 +56,19 @@ function goBack() {
         
         <button class="back-button" @click="goBack">← Back</button>
 
-        <h1 class="main-title">Select Dataset</h1>
+        <h1 class="main-title">Select Case Study</h1>
         
         <p class="description">
-          Choose one of the <strong>four experimental datasets</strong> provided for this study. 
-          Each dataset contains different scenarios to test AI fairness and performance.
+          The evaluator has computed a set of metrics to help assess the potential impact of the AI system on fundamental rights. Before continuing, please review these results carefully and provide your feedback on two aspects: <b>reversibility</b> and <b>gravity</b>.<br><br>
+          <b>Reversibility</b>: <br><br>For each fundamental right, indicate if a damage can be repaired or not. In this context, reversibility means how easily an action, decision, or effect caused by the system can be undone, corrected, or transferred away from the current provider or technical setup. A "YES" in reversibility means that the problem can be corrected without major consequences. A "NO" in reversibility means that the problem may create long-term dependency, loss of control, or harm that is difficult to repair.
+          <br><br>
+          <b>Gravity</b>: <br><br> For each metric, indicate the <b>gravity</b> of the potential risk. In this context, gravity means how serious the impact on a fundamental right could be if the risk occurs. This is especially important in a Fundamental Rights Impact Assessment, where high-risk AI systems must be assessed according to the severity of possible harm. When assigning gravity, consider the <b>scale, nature, and intensity</b> of the impact. A low-gravity risk may cause limited inconvenience or temporary disadvantage. A high-gravity risk may seriously affect the fundamental right of a person. For example, an incorrect recommendation in a low-impact administrative process may have limited gravity. However, an AI error that affects access to healthcare, justice, education, social benefits, or employment may have high gravity because it can significantly affect a person’s rights and life opportunities.
+          
         </p>
 
         <div class="datasets-grid">
           <div 
-            v-for="ds in experimentDatasets" 
+            v-for="ds in toyScenarios" 
             :key="ds.id"
             class="dataset-card"
             :class="{ 'is-selected': selectedDataset?.id === ds.id }"
@@ -113,7 +76,6 @@ function goBack() {
           >
             <div class="card-badge">{{ ds.type }}</div>
             <h3 class="dataset-name">{{ ds.name }}</h3>
-            <p class="dataset-file"><code>{{ ds.file }}</code></p>
             <p class="dataset-desc">{{ ds.description }}</p>
             
             <div class="selection-indicator">
@@ -123,20 +85,19 @@ function goBack() {
           </div>
         </div>
 
-        <div v-if="error" class="error-msg">{{ error }}</div>
       </div>
     </main>
 
     <div class="bottom-nav">
       <button class="nav-btn ghost" @click="goBack">Cancel</button>
       <div class="nav-right">
-        <span v-if="!canGoNext" class="hint">Please select a dataset to proceed</span>
+        <span v-if="!canGoNext" class="hint">Please select a scenario to proceed</span>
         <button 
           class="nav-btn primary" 
-          :disabled="!canGoNext || loading" 
+          :disabled="!canGoNext" 
           @click="goNext"
         >
-          {{ loading ? 'Loading...' : 'Next step →' }}
+          Load Dashboard →
         </button>
       </div>
     </div>
@@ -257,12 +218,6 @@ function goBack() {
   margin: 0 0 0.5rem 0;
 }
 
-.dataset-file {
-  font-size: 0.8rem;
-  color: #888;
-  margin-bottom: 1rem;
-}
-
 .dataset-desc {
   font-size: 0.95rem;
   color: #666;
@@ -312,10 +267,4 @@ function goBack() {
 .primary { background: #111; color: #fff; border: 1px solid #111; }
 .primary:not(:disabled):hover { background: #1243e3; border-color: #1243e3; }
 .primary:disabled { background: #e5e5e5; color: #a0a0a0; border-color: #e5e5e5; cursor: not-allowed; }
-
-.error-msg {
-  color: #e63946;
-  margin-top: 1rem;
-  font-size: 0.9rem;
-}
 </style>

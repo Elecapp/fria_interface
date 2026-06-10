@@ -19,8 +19,9 @@ import re
 import shutil
 import math
 
+ACTIVE_RUN_ID = None
+
 def clean_nans(obj):
-    """Esplora i dati e converte tutti i NaN o Infinity in None (null in JSON)"""
     if isinstance(obj, dict):
         return {k: clean_nans(v) for k, v in obj.items()}
     elif isinstance(obj, list):
@@ -31,126 +32,118 @@ def clean_nans(obj):
     return obj
 
 def calculate_fria_risk(likelihood, gravity, is_reversible):
-    """
-    Calcola il rischio finale.
-    Likelihood (0-10) * Gravity (0-4).
-    Se il danno è IRREVERSIBILE (False), il rischio aumenta del 50%.
-    """
     if likelihood is None: return None
     try: l_val = float(likelihood)
     except (ValueError, TypeError): return None
-    
     g_val = float(gravity) if gravity is not None else 0.0
-    
     risk = l_val * g_val
     if is_reversible is False:
         risk = risk * 1.5 
-        
     return round(risk, 3)
+
+# --- FUNZIONE CHIAVE: Uccide i campi fantasma ---
+def strip_report_fields(d):
+    """Rimuove le vecchie modifiche dai file pre-compilati per partire da zero."""
+    if isinstance(d, dict):
+        keys_to_delete = [k for k in d.keys() if k.endswith("_report") or k in ["gravity", "reversibility", "user_weight"]]
+        for k in keys_to_delete:
+            del d[k]
+        for v in d.values():
+            strip_report_fields(v)
+    elif isinstance(d, list):
+        for item in d:
+            strip_report_fields(item)
+    return d
 
 logger = logging.getLogger("uvicorn.error")
 router = APIRouter(tags=["results"])
 
-#GET: metrics to be displayed in dashboard
 @router.get("/results/plugins")
 def get_plugins():
     path = latest_config_path()
     if not path:
         return {"config_file": None, "plugins": []}
     cfg = json.loads(path.read_text(encoding="utf-8"))
+    return {"config_file": path.name, "plugins": cfg.get("plugins", [])}
+
+@router.get("/results/values_to_display")
+def values_to_display(run_id: Optional[str] = Query(None)):
+    global ACTIVE_RUN_ID
+    if run_id and run_id.strip(): ACTIVE_RUN_ID = run_id.strip()
+    current_id = ACTIVE_RUN_ID
+
+    if not current_id:
+        cfg = latest_config_path()
+        if not cfg: raise HTTPException(status_code=404, detail="Nessun dataset trovato.")
+        current_id = cfg.stem
+        ACTIVE_RUN_ID = current_id
+
+    dataset_names_map = {
+        "Hiring_good": "Algoritmo HR (Scenario Ottimale)",
+        "Hiring_bad": "Algoritmo HR (Scenario Critico)"
+    }
+    fallback_name = current_id.replace("_", " ").title()
+    dataset_name = dataset_names_map.get(current_id, f"Dataset: {fallback_name}")
+    evaluation_date = datetime.now().strftime("%B %d, %Y")
+    
+    report_path = RESULTS_DIR / f"{current_id}_report.json"
+    res_path = RESULTS_DIR / f"{current_id}.json"
+
+    # DA PRECEDENZA ASSOLUTA AL REPORT COSI LE MODIFICHE RESTANO!
+    if report_path.exists():
+        data = json.loads(report_path.read_text(encoding="utf-8"))
+        results = data.get("results", data)
+    elif res_path.exists():
+        results = json.loads(res_path.read_text(encoding="utf-8"))
+    else:
+        raise HTTPException(status_code=404, detail=f"File {current_id}.json non trovato!")
+
     return {
-        "config_file": path.name,
-        "plugins": cfg.get("plugins", [])
+        "run_id": current_id, 
+        "results": clean_nans(results), 
+        "evaluation_date": evaluation_date, 
+        "dataset_name": dataset_name, 
     }
 
-#GET: values to be displayed for the dashboard + metadata for report generation
-@router.get("/results/values_to_display")
-def values_to_display():
-    cfg = latest_config_path()
-    if not cfg:
-        raise HTTPException(status_code=404, detail="No config files found")
-
-    run_id = cfg.stem    
-    cfg = json.loads(cfg.read_text(encoding="utf-8"))
-
-    dataset_name = ""
-    x_test = (cfg.get("datasets") or {}).get("X_test")
-        
-    if x_test:
-        fname = os.path.basename(str(x_test))
-        parts = fname.split("__")
-        if len(parts) >= 3:
-            dataset_name = parts[-1]
-            if dataset_name.lower().endswith(".csv"):
-                dataset_name = dataset_name[:-4]  
-
-    evaluation_date = datetime.now().strftime("%B %d, %Y")
-    logger.info(f"dataset= {dataset_name}")
-    
-    res_path = RESULTS_DIR / f"{run_id}.json"
-
-    if res_path.exists():
-        results = json.loads(res_path.read_text(encoding="utf-8"))  
-        results = clean_nans(results)
-        
-        return {
-            "run_id": run_id, 
-            "results": results, 
-            "evaluation_date": evaluation_date, 
-            "dataset_name": dataset_name, 
-        }
-
-    raise HTTPException(status_code=404, detail="No results found matching any config")
-
-#GET: returns the schema identified for each metric
 @router.get("/results/result_schemas")
-def get_result_schemas(run_id: str | None = Query(default=None)):
-    if run_id is None:
+def get_result_schemas(run_id: Optional[str] = Query(None)):
+    global ACTIVE_RUN_ID
+    if run_id and run_id.strip(): ACTIVE_RUN_ID = run_id.strip()
+    current_id = ACTIVE_RUN_ID
+
+    if not current_id:
         cfg = latest_config_path()
-        if not cfg:
-            raise HTTPException(status_code=404, detail="No config files found")
-        run_id = cfg.stem
+        if not cfg: raise HTTPException(status_code=404)
+        current_id = cfg.stem
+        ACTIVE_RUN_ID = current_id
 
-    schemas_path = RESULTS_DIR / f"{run_id}_schemas.json"
+    schemas_path = RESULTS_DIR / f"{current_id}_schemas.json"
     if not schemas_path.exists():
-        raise HTTPException(
-            status_code=404,
-            detail=f"Schemas file not found for run_id={run_id}. Expected: {schemas_path.name}"
-        )
-
+        raise HTTPException(status_code=404, detail=f"File degli schemi non trovato per {current_id}")
     return json.loads(schemas_path.read_text(encoding="utf-8"))
 
-
-# --- PAYLOAD AGGIORNATO (Executive Revision) ---
 class WeightsSavePayload(BaseModel):
     run_id: str 
     group: Optional[str] = None 
     metric: str 
-
     user_weight: Optional[float] = None
     user_justification: Optional[str] = ""
-    
     weights: Dict[str, float] = Field(default_factory=dict)           
     justifications: Dict[str, str] = Field(default_factory=dict)    
-
     schema_type_report: Optional[str] = None
     context_report: Optional[Dict[str, Any]] = None
     summary_report: Optional[Dict[str, Any]] = None
-
-    # NUOVI CAMPI EXECUTIVE
     gravity: Optional[int] = 0
     reversibility: Optional[bool] = False
     reversibilityByLabel: Dict[str, bool] = Field(default_factory=dict)
     executiveData: Optional[Dict[str, Any]] = Field(default_factory=dict)
 
-#POST: save weights, justification and report content
 @router.post("/results/save_weights")
 def save_weights(payload: WeightsSavePayload):
     from backend.services.result_services import load_plugin_registry
-    
     run_id = payload.run_id
-    group = payload.group
     metric = payload.metric
+    group = payload.group
 
     plugin_registry = load_plugin_registry(REGISTRY_DIR)
     metric_meta = plugin_registry.get(metric, {})
@@ -161,162 +154,75 @@ def save_weights(payload: WeightsSavePayload):
     report_path = RESULTS_DIR / f"{run_id}_report.json"
 
     if not source_path.exists():
-        raise HTTPException(status_code=404, detail=f"Results file not found for run_id={run_id}")
+        raise HTTPException(status_code=404, detail=f"Results file not found")
 
     if report_path.exists():
         report_raw = json.loads(report_path.read_text(encoding="utf-8"))
     else:
         report_raw = json.loads(source_path.read_text(encoding="utf-8"))
+        # PRIMA MODIFICA ASSOLUTA: Puliamo i fantasmi del vecchio file!
+        report_raw = strip_report_fields(report_raw)
 
     report_results = report_raw.get("results") if isinstance(report_raw, dict) and "results" in report_raw else report_raw
-
-    if metric not in report_results or not isinstance(report_results[metric], dict):
-        raise HTTPException(status_code=400, detail=f"Metric '{metric}' not found in results/report")
+    if metric not in report_results:
+        raise HTTPException(status_code=400, detail=f"Metric not found")
 
     metric_obj = report_results[metric] 
 
-    # --------------------
-    # CASE A: GLOBAL METRIC 
-    # --------------------
     if payload.user_weight is not None and "(global)" in metric_obj:
         w = payload.user_weight
-        just = (payload.user_justification).strip()
-
         if not isinstance(metric_obj["(global)"], dict):
-            if isinstance(metric_obj["(global)"], (int, float)):
-                metric_obj["(global)"] = {"value": metric_obj["(global)"]}
-            else:
-                metric_obj["(global)"] = {}
-
-        # --- Calcolo FRIA ---
+            metric_obj["(global)"] = {"value": metric_obj["(global)"]}
         metric_value = (payload.context_report or {}).get("final_score")
         final_score = calculate_fria_risk(metric_value, payload.gravity, payload.reversibility)
         
-        if final_score is not None:
-            metric_obj["(global)"]["total_score_report"] = final_score
+        if final_score is not None: metric_obj["(global)"]["total_score_report"] = final_score
         
         metric_obj["(global)"]["metric_report"] = metric
-        if w is not None: 
-            metric_obj["(global)"]["user_weight_report"] = w
-        if group:
-            metric_obj["(global)"]["group_report"] = group
-        if metric_description:
-            metric_obj["(global)"]["metric_description_report"] = metric_description
-        if metric_right:
-            metric_obj["(global)"]["metric_right_report"] = metric_right 
-        if just:
-            metric_obj["(global)"]["user_justification_report"] = just
-        if payload.schema_type_report is not None:
-            metric_obj["(global)"]["schema_type_report"] = payload.schema_type_report
-        if payload.context_report is not None:
-            metric_obj["(global)"]["context_report"] = payload.context_report
-
-        # CAMPI EXECUTIVE
+        metric_obj["(global)"]["user_weight_report"] = w
+        metric_obj["(global)"]["user_weight"] = w  # Sicurezza per l'interfaccia
         metric_obj["(global)"]["gravity_report"] = payload.gravity
+        metric_obj["(global)"]["gravity"] = payload.gravity # Sicurezza per l'interfaccia
         metric_obj["(global)"]["reversibility_report"] = payload.reversibility
+        metric_obj["(global)"]["user_justification_report"] = payload.user_justification
 
         report_path.write_text(json.dumps(report_raw, ensure_ascii=False, indent=2), encoding="utf-8")
-        return {"ok": True, "mode": "global", "run_id": run_id}
+        return {"ok": True, "mode": "global"}
 
-    # --------------------
-    # CASE B: METRIC-LEVEL 
-    # --------------------
     if payload.user_weight is not None:
         w = payload.user_weight
-        just = (payload.user_justification or "").strip()
-
-        # --- Calcolo FRIA ---
         metric_value = (payload.context_report or {}).get("final_score")
         final_score = calculate_fria_risk(metric_value, payload.gravity, payload.reversibility)
         
-        if final_score is not None:
-            metric_obj["total_score_report"] = final_score
+        if final_score is not None: metric_obj["total_score_report"] = final_score
 
-        metric_report = metric
-        if w is not None: 
-            metric_obj["user_weight_report"] = w
-        if group:
-            metric_obj["right_report"] = group
-        if metric_description:
-            metric_obj["metric_description_report"] = metric_description 
-        if metric_right:
-            metric_obj["metric_right_report"] = metric_right 
-        if just:
-            metric_obj["user_justification_report"] = just
-        if payload.schema_type_report is not None:
-            metric_obj["schema_type_report"] = payload.schema_type_report
-        if payload.context_report is not None:
-            metric_obj["context_report"] = payload.context_report
-
-        # CAMPI EXECUTIVE
+        metric_obj["user_weight_report"] = w
+        metric_obj["user_weight"] = w
         metric_obj["gravity_report"] = payload.gravity
+        metric_obj["gravity"] = payload.gravity
         metric_obj["reversibility_report"] = payload.reversibility
+        metric_obj["user_justification_report"] = payload.user_justification
 
         report_path.write_text(json.dumps(report_raw, ensure_ascii=False, indent=2), encoding="utf-8")
-        return {"ok": True, "mode": "metric", "run_id": run_id}
+        return {"ok": True, "mode": "metric"}
 
-    # --------------------
-    # CASE C: FEATURE-LEVEL 
-    # --------------------
     if payload.weights:
         for feature, w_raw in payload.weights.items():
             w = w_raw
-            just = (payload.justifications.get(feature) or "").strip()
             feat_rev = payload.reversibilityByLabel.get(feature, payload.reversibility)
-
             if feature not in metric_obj or not isinstance(metric_obj[feature], dict):
-                if isinstance(metric_obj.get(feature), (int, float)):
-                    metric_obj[feature] = {"value": metric_obj[feature]}
-                else:
-                    metric_obj[feature] = {}
-
-            # --- Calcolo FRIA ---
-            metric_value = ((payload.summary_report or {}).get(feature, {}).get("Final Score")
-                            or (payload.context_report or {}).get(feature, {}).get("Final Score")
-                            or ((payload.context_report or {}).get(feature, {}).get("value", 0)*10)
-                            or ((payload.context_report or {}).get("final_score")) 
-            )
-
-            final_score = calculate_fria_risk(metric_value, w, feat_rev)
-            if final_score is not None:
-                metric_obj[feature]["total_score_report"] = final_score
-
-            metric_obj[feature]["metric_report"] = metric
+                metric_obj[feature] = {}
             metric_obj[feature]["user_weight_report"] = w
+            metric_obj[feature]["user_weight"] = w
             metric_obj[feature]["gravity_report"] = w
+            metric_obj[feature]["gravity"] = w
             metric_obj[feature]["reversibility_report"] = feat_rev
-            
-            if group:
-                metric_obj[feature]["group_report"] = group
-            if metric_description:
-                metric_obj[feature]["metric_description_report"] = metric_description 
-            if metric_right:
-                metric_obj[feature]["metric_right_report"] = metric_right 
-            if just:
-                metric_obj[feature]["user_justification_report"] = just
-        
-            if payload.schema_type_report is not None:
-                metric_obj[feature]["schema_type_report"] = payload.schema_type_report
-            
-            if payload.context_report is not None:
-                if feature in payload.context_report and isinstance(payload.context_report.get(feature), dict):
-                    metric_obj[feature]["context_report"] = payload.context_report[feature]
-                else:
-                    metric_obj[feature]["context_report"] = payload.context_report
-
-            if payload.summary_report is not None:
-                if feature in payload.summary_report and isinstance(payload.summary_report.get(feature), dict):
-                    metric_obj[feature]["summary_report"] = payload.summary_report[feature]
-                else:
-                    metric_obj[feature]["summary_report"] = payload.summary_report
-
+            metric_obj[feature]["user_justification_report"] = payload.justifications.get(feature, "")
         report_path.write_text(json.dumps(report_raw, ensure_ascii=False, indent=2), encoding="utf-8")
-        return {"ok": True, "mode": "feature", "run_id": run_id}
+        return {"ok": True, "mode": "feature"}
 
-    raise HTTPException(status_code=400, detail="No weights provided (metric-level or feature-level).")
+    raise HTTPException(status_code=400, detail="No weights provided.")
 
-
-# --- NUOVO ENDPOINT: DOMAIN CONFIG (REVERSIBILITY) ---
 class DomainConfigPayload(BaseModel):
     run_id: str
     domain: str
@@ -332,77 +238,70 @@ def save_domain_config(payload: DomainConfigPayload):
     elif source_path.exists():
         report_raw = json.loads(source_path.read_text(encoding="utf-8"))
     else:
-        raise HTTPException(status_code=404, detail="Results not found")
+        raise HTTPException(status_code=404)
 
-    if "domain_configs" not in report_raw:
-        report_raw["domain_configs"] = {}
-        
-    report_raw["domain_configs"][payload.domain] = {
-        "reversibility": payload.reversibility
-    }
-    
+    if "domain_configs" not in report_raw: report_raw["domain_configs"] = {}
+    report_raw["domain_configs"][payload.domain] = {"reversibility": payload.reversibility}
     report_path.write_text(json.dumps(report_raw, ensure_ascii=False, indent=2), encoding="utf-8")
-    return {"status": "success", "domain": payload.domain, "reversibility": payload.reversibility}
+    return {"status": "success"}
 
-
-#GET: take the _report.json to generate the final PDF
 @router.get("/results/{run_id}_report")
 def get_report_json(run_id: str):
     report_path = RESULTS_DIR / f"{run_id}_report.json"
-
-    if not report_path.exists():
-        raise HTTPException(
-            status_code=404,
-            detail=f"Report file not found for run_id={run_id}. Expected: {report_path.name}"
-        )
+    if not report_path.exists(): 
+        raise HTTPException(status_code=404, detail="Report non trovato")
 
     report_data = json.loads(report_path.read_text(encoding="utf-8"))
-    
     domain_configs = report_data.get("domain_configs", {})
-    results = report_data.get("results", {})
+    results = report_data.get("results", report_data)
 
-    for metric_key, metric_data in results.items():
-        group = metric_data.get("group_report")
-        if not group and "(global)" in metric_data:
-            group = metric_data["(global)"].get("group_report")
+    # Elenchi per la mappatura automatica dei domini (universale)
+    privacy_list = ["anonymity_set_size", "k_anonymity", "l_diversity", "mutual_information_metric", "t_closeness"]
+    fairness_list = ["conditional_statistical_parity", "conditional_use_accuracy_equality", "demographic_parity", "disparate_impact", "equal_opportunity", "equalized_odds_difference", "overall_accuracy_equality", "predictive_parity"]
+
+    # FORZATURA STRUTTURALE DELLA REVERSIBILITA' PER IL RENDERIZZATORE PDF
+    if isinstance(results, dict):
+        for metric_key, metric_data in results.items():
+            if not isinstance(metric_data, dict): 
+                continue
+                
+            # Capiamo a quale dominio appartiene la metrica attuale
+            group = "privacy" if metric_key in privacy_list else "non_discrimination" if metric_key in fairness_list else "other"
             
-        if group and group in domain_configs:
-            rev = domain_configs[group].get("reversibility", False)
-            metric_data["reversibility_report"] = rev
-            if "(global)" in metric_data:
-                metric_data["(global)"]["reversibility_report"] = rev
+            if group in domain_configs:
+                # Leggiamo il booleano salvato (True/False)
+                is_rev = domain_configs[group].get("reversibility", False)
+                
+                # Iniettiamo la proprietà ovunque il motore del PDF possa cercarla
+                metric_data["reversibility_report"] = is_rev
+                metric_data["reversibility"] = is_rev
+                
+                if "(global)" in metric_data and isinstance(metric_data["(global)"], dict):
+                    metric_data["(global)"]["reversibility_report"] = is_rev
+                    metric_data["(global)"]["reversibility"] = is_rev
+                
+                # Scendiamo anche nei sottogruppi (es. le feature di fairness per Genere o Età)
+                for sub_k, sub_v in metric_data.items():
+                    if isinstance(sub_v, dict):
+                        sub_v["reversibility_report"] = is_rev
+                        sub_v["reversibility"] = is_rev
 
     return clean_nans(report_data)
 
-#PDF GENERATION
 class GeneratePDFRequest(BaseModel):
     run_id: str
 
 @router.post("/results/generate_pdf")
 def generate_pdf(req: GeneratePDFRequest):
     run_id = (req.run_id or "").strip()
-    if not run_id:
-        raise HTTPException(status_code=400, detail="run_id is required")
-
-    frontend_base_url = os.getenv("FRONTEND_BASE_URL", "http://localhost:5173")
-
+    if not run_id: raise HTTPException(status_code=400)
     out_dir = Path("backend/storage/reports")
     out_path = out_dir / f"{run_id}_report.pdf"
-
     try:
-        render_report_to_pdf(
-            run_id=run_id,
-            frontend_base_url=frontend_base_url,
-            out_path=out_path,
-        )
+        render_report_to_pdf(run_id=run_id, frontend_base_url=os.getenv("FRONTEND_BASE_URL", "http://localhost:5173"), out_path=out_path)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"PDF generation failed: {e}")
-
-    return FileResponse(
-        path=str(out_path),
-        media_type="application/pdf",
-        filename=f"final_evaluation_report_{run_id}.pdf",
-    )
+    return FileResponse(path=str(out_path), media_type="application/pdf", filename=f"final_evaluation_report_{run_id}.pdf")
 
 @router.post("/results/purge_run")
 def purge_run(payload: Dict[str, Any] = Body(...)):
@@ -410,19 +309,16 @@ def purge_run(payload: Dict[str, Any] = Body(...)):
     if not run_id:
         raise HTTPException(status_code=400, detail="run_id is required")
 
-    files_to_delete = [
-        RESULTS_DIR / f"{run_id}.json",
-        RESULTS_DIR / f"{run_id}_report.json",
-        RESULTS_DIR / f"{run_id}_schemas.json"
-    ]
+    # TRUCCO ESPERIMENTO: Eliminiamo SOLO il file del report.
+    # I file originali (dati e schemi) NON devono essere toccati!
+    report_file = RESULTS_DIR / f"{run_id}_report.json"
     
     deleted_count = 0
-    for f in files_to_delete:
-        if f.exists():
-            try:
-                f.unlink()
-                deleted_count += 1
-            except Exception as e:
-                logger.error(f"Impossibile cancellare il file {f}: {e}")
+    if report_file.exists():
+        try:
+            report_file.unlink()
+            deleted_count += 1
+        except Exception as e:
+            logger.error(f"Impossibile cancellare il file {report_file}: {e}")
                 
     return {"status": "success", "files_deleted": deleted_count}

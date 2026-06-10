@@ -28,7 +28,6 @@ const saveOk = ref(false);
 
 const activeFeatureTab = ref("");
 
-// --- STATI EXECUTIVE E PROGRESSIVE DISCLOSURE ---
 const showHeavyTables = ref(false);
 const DEFAULT_GRAVITY = 0;
 const featureGravity = ref({});
@@ -60,11 +59,27 @@ function formatGroupLabel(v) {
 
 const featureKeys = computed(() => props.metricObj && typeof props.metricObj === "object" ? Object.keys(props.metricObj).filter(k => k !== "__combined__" && k !== "(global)" && k !== "final_score" && k !== "gravity" && k !== "reversibility") : []);
 
+// --- FIX DECISIVO: Leggiamo i dati del backend (props.metricObj) invece di azzerare! ---
 function ensureFeatureState(feature) {
-  if (!(feature in featureGravity.value)) featureGravity.value[feature] = DEFAULT_GRAVITY;
-  if (!(feature in featureReversibility.value)) featureReversibility.value[feature] = false;
-  if (!(feature in featureJustifications.value)) featureJustifications.value[feature] = "";
-  if (!(feature in savedFeatures.value)) savedFeatures.value[feature] = false;
+  const featData = props.metricObj?.[feature] || {};
+
+  if (!(feature in featureGravity.value)) {
+    const savedGrav = featData.gravity ?? featData.gravity_report ?? featData.user_weight ?? featData.user_weight_report;
+    featureGravity.value[feature] = savedGrav !== undefined ? Number(savedGrav) : DEFAULT_GRAVITY;
+  }
+  if (!(feature in featureReversibility.value)) {
+    const savedRev = featData.reversibility ?? featData.reversibility_report;
+    featureReversibility.value[feature] = savedRev !== undefined ? !!savedRev : false;
+  }
+  if (!(feature in featureJustifications.value)) {
+    const savedJust = featData.user_justification ?? featData.user_justification_report ?? featData.justification;
+    featureJustifications.value[feature] = savedJust !== undefined ? String(savedJust) : "";
+  }
+  if (!(feature in savedFeatures.value)) {
+    // Se troviamo un peso già salvato dal backend, lo marchiamo come già fatto
+    const savedGrav = featData.gravity ?? featData.gravity_report ?? featData.user_weight ?? featData.user_weight_report;
+    savedFeatures.value[feature] = savedGrav !== undefined;
+  }
 }
 
 function isFeatureSaved(feature) { ensureFeatureState(feature); return !!savedFeatures.value[feature]; }
@@ -129,7 +144,6 @@ async function saveFeature(feature) {
       feature, metricObj: props.metricObj, weight: gravityValue, justification, formatLabel: prettifyLabel, formatValue: formatAny,
     });
     
-    // Iniettiamo i nuovi campi
     payload.gravity = gravityValue;
     payload.reversibility = reversibilityValue;
 
@@ -176,7 +190,6 @@ onMounted(() => {
   if (featureKeys.value.length > 0) activeFeatureTab.value = featureKeys.value[0];
 });
 </script>
-
 <template>
   <div class="result-layout">
     

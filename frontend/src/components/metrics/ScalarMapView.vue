@@ -1,5 +1,5 @@
 <script setup>
-import { computed, reactive, ref, watch, nextTick } from "vue";
+import { computed, reactive, ref, watch, nextTick, onMounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import {
   DEFAULT_WEIGHT,
@@ -18,6 +18,9 @@ const props = defineProps({
   initialWeights: { type: Object, default: () => ({}) },
   runId: { type: String, required: true },
 });
+
+// Esposta per il salvataggio blindato dal genitore
+const emit = defineEmits(["go-back-safe"]);
 
 function prettifyLabel(str) {
   return String(str || "")
@@ -38,14 +41,23 @@ const items = computed(() => {
     .map(([label, value]) => ({ label, value }));
 });
 
+// FIX: Ripristino dei dati veri all'avvio al posto del reset a DEFAULT_WEIGHT
 watch(
   items,
   async (rows) => {
     initialized.value = false;
     for (const r of rows) {
-      const init = Number(props.initialWeights?.[r.label]);
-      weights[r.label] = Number.isFinite(init) ? init : DEFAULT_WEIGHT;
-      if (justifications[r.label] === undefined) justifications[r.label] = "";
+      const featData = props.metricObj?.[r.label] || {};
+      
+      // Cerca il peso nei vari formati salvati dal backend
+      const savedGrav = featData.user_weight ?? featData.user_weight_report ?? featData.gravity ?? featData.gravity_report ?? featData.weight ?? props.initialWeights?.[r.label];
+      weights[r.label] = savedGrav !== undefined ? Number(savedGrav) : DEFAULT_WEIGHT;
+      
+      // Cerca la giustificazione
+      const savedJust = featData.user_justification ?? featData.user_justification_report ?? featData.justification;
+      if (justifications[r.label] === undefined) {
+        justifications[r.label] = savedJust !== undefined ? String(savedJust) : "";
+      }
     }
     await nextTick();
     initialized.value = true;
@@ -105,7 +117,7 @@ function buildSavePayload() {
     justificationsByLabel[label] = finalWeight === DEFAULT_WEIGHT ? DEFAULT_WEIGHT_JUSTIFICATION : String(justifications[label] || "").trim();
   }
 
-  return buildScalarMapSavePayload({
+  const payload = buildScalarMapSavePayload({
     runId: props.runId,
     group: group.value,
     metric: props.metricKey,
@@ -113,6 +125,17 @@ function buildSavePayload() {
     weightsByLabel,
     justificationsByLabel,
   });
+
+  // Aggiunge la replicazione dei pesi per il nuovo backend (gravity = peso)
+  payload.gravity = DEFAULT_WEIGHT;
+  payload.weights = weightsByLabel;
+  payload.justifications = justificationsByLabel;
+  payload.reversibilityByLabel = {}; 
+  for (const row of items.value) {
+     payload.reversibilityByLabel[row.label] = props.metricObj?.[row.label]?.reversibility ?? false;
+  }
+
+  return payload;
 }
 
 async function postSaveMetric() {
@@ -139,13 +162,24 @@ async function onSave() {
   try {
     await postSaveMetric()
     saveOk.value = true;
-    router.back();
   } catch (e) {
     saveError.value = e?.message || String(e);
   } finally {
     saving.value = false;
   }
 }
+
+// Funzione richiamata dal bottone blu gigante nel Genitore
+async function goBackSafely() {
+  if (anyChanged.value && canSave.value) {
+    await onSave();
+  } else if (!anyChanged.value) {
+    try { await postSaveMetric(); } catch(e) {}
+  }
+  emit("go-back-safe");
+}
+defineExpose({ goBackSafely });
+
 </script>
 
 <template>

@@ -1,3 +1,4 @@
+
 <script setup>
 import { computed, onMounted, ref } from "vue";
 import { useRoute } from "vue-router";
@@ -13,19 +14,19 @@ import {
 
 const route = useRoute();
 const group = computed(() => String(route.params.group || ""));
-const metricKey = computed(() => String(route.params.metric || ""));
 
-const loading = ref(false);
-const error = ref("");
-const metricObj = ref(null);
+// FIX: Aggiunte le Props complete per costringere il figlio a usare i dati freschi del Genitore!
+const props = defineProps({ 
+  runId: { type: [String, Number], required: true },
+  metricKey: { type: String, required: true },
+  metricObj: { type: Object, required: true }
+});
 
-const props = defineProps({ runId: { type: String, required: true } });
 const emit = defineEmits(["go-back-safe"]);
 
 const activeFeatureTab = ref("");
 const MIN_JUST_LENGTH = 10;
 
-// --- STATI PROGRESSIVE DISCLOSURE E EXECUTIVE ---
 const showHeavyTables = ref(false);
 const DEFAULT_GRAVITY = 0;
 const featureGravity = ref({});
@@ -44,11 +45,26 @@ const gravityLabels = {
   4: "4 - Very High"
 };
 
+// FIX: Ora la funzione legge davvero i dati da props.metricObj
 function ensureFeatureState(feature) {
-  if (!(feature in featureGravity.value)) featureGravity.value[feature] = DEFAULT_GRAVITY;
-  if (!(feature in featureReversibility.value)) featureReversibility.value[feature] = false;
-  if (!(feature in featureJustifications.value)) featureJustifications.value[feature] = "";
-  if (!(feature in savedFeatures.value)) savedFeatures.value[feature] = false;
+  const featData = props.metricObj?.[feature] || {};
+
+  if (!(feature in featureGravity.value)) {
+    const savedGrav = featData.gravity ?? featData.gravity_report ?? featData.user_weight ?? featData.user_weight_report;
+    featureGravity.value[feature] = savedGrav !== undefined ? Number(savedGrav) : DEFAULT_GRAVITY;
+  }
+  if (!(feature in featureReversibility.value)) {
+    const savedRev = featData.reversibility ?? featData.reversibility_report;
+    featureReversibility.value[feature] = savedRev !== undefined ? !!savedRev : false;
+  }
+  if (!(feature in featureJustifications.value)) {
+    const savedJust = featData.user_justification ?? featData.user_justification_report ?? featData.justification;
+    featureJustifications.value[feature] = savedJust !== undefined ? String(savedJust) : "";
+  }
+  if (!(feature in savedFeatures.value)) {
+    const savedGrav = featData.gravity ?? featData.gravity_report ?? featData.user_weight ?? featData.user_weight_report;
+    savedFeatures.value[feature] = savedGrav !== undefined;
+  }
 }
 
 function isFeatureSaved(feature) { ensureFeatureState(feature); return !!savedFeatures.value[feature]; }
@@ -73,8 +89,8 @@ async function saveFeature(feature) {
 
   try {
     const payload = buildConditionalNestedFeatureSavePayload({
-      runId: props.runId, group: group.value, metric: metricKey.value, schemaType: schemaTypeReport.value, 
-      feature, metricObj: metricObj.value, weight: gravityValue, justification, formatLabel: prettifyLabel, formatValue: formatAny,
+      runId: props.runId, group: group.value, metric: props.metricKey, schemaType: schemaTypeReport.value, 
+      feature, metricObj: props.metricObj, weight: gravityValue, justification, formatLabel: prettifyLabel, formatValue: formatAny,
     });
     
     payload.gravity = gravityValue;
@@ -94,8 +110,8 @@ async function saveMissingFeaturesWithDefaultWeight() {
       ensureFeatureState(feature);
       if (isFeatureSaved(feature)) continue;
       const payload = buildConditionalNestedFeatureSavePayload({
-        runId: props.runId, group: group.value, metric: metricKey.value, schemaType: schemaTypeReport.value, 
-        feature, metricObj: metricObj.value, weight: DEFAULT_GRAVITY, justification: DEFAULT_WEIGHT_JUSTIFICATION, formatLabel: prettifyLabel, formatValue: formatAny,
+        runId: props.runId, group: group.value, metric: props.metricKey, schemaType: schemaTypeReport.value, 
+        feature, metricObj: props.metricObj, weight: DEFAULT_GRAVITY, justification: DEFAULT_WEIGHT_JUSTIFICATION, formatLabel: prettifyLabel, formatValue: formatAny,
       });
       payload.gravity = DEFAULT_GRAVITY;
       payload.reversibility = false;
@@ -109,13 +125,13 @@ async function goBackSafely() { await saveMissingFeaturesWithDefaultWeight(); em
 defineExpose({ goBackSafely });
 
 const featureKeys = computed(() => {
-  const obj = metricObj.value;
+  const obj = props.metricObj;
   if (!obj || typeof obj !== "object") return [];
-  return Object.keys(obj).filter(k => k !== "__combined__" && k !== "(global)" && k !== "final_score");
+  return Object.keys(obj).filter(k => k !== "__combined__" && k !== "(global)" && k !== "final_score" && k !== "gravity" && k !== "reversibility");
 });
 
 const resultSchemas = ref({});
-const schemaTypeReport = computed(() => resultSchemas.value?.[metricKey.value]?.schema ?? null);
+const schemaTypeReport = computed(() => resultSchemas.value?.[props.metricKey]?.schema ?? null);
 
 async function loadResultSchemas() {
   try {
@@ -129,7 +145,7 @@ function formatAny(v) { return typeof v === "number" ? (Number.isFinite(v) ? v.t
 function formatHeaderKey(k) { const num = Number(k); return !Number.isNaN(num) && k !== "" ? num.toFixed(3) : prettifyLabel(k); }
 function isPlainObjectLocal(v) { return v !== null && typeof v === 'object' && !Array.isArray(v); }
 
-function getFeatureObject(featureKey) { return sharedGetFeatureObject(metricObj.value, featureKey); }
+function getFeatureObject(featureKey) { return sharedGetFeatureObject(props.metricObj, featureKey); }
 function getConditionsKeyForFeature(featureObjLocal) {
   if (!isPlainObjectLocal(featureObjLocal)) return null;
   let bestKey = null, bestRows = -1;
@@ -140,8 +156,8 @@ function getConditionsKeyForFeature(featureObjLocal) {
   }
   return bestKey;
 }
-function getContextSummaryRows(feature) { return sharedBuildContextSummaryRows(metricObj.value, feature, prettifyLabel, formatAny); }
-function getSummaryRows(feature) { return sharedBuildSummaryRows(metricObj.value, feature, prettifyLabel, formatAny); }
+function getContextSummaryRows(feature) { return sharedBuildContextSummaryRows(props.metricObj, feature, prettifyLabel, formatAny); }
+function getSummaryRows(feature) { return sharedBuildSummaryRows(props.metricObj, feature, prettifyLabel, formatAny); }
 function getConditionsKey(feature) { const obj = getFeatureObject(feature); return obj ? getConditionsKeyForFeature(obj) : null; }
 function getConditionsRows(feature) {
   const obj = getFeatureObject(feature); const key = getConditionsKey(feature);
@@ -155,35 +171,18 @@ function getConditionsColumns(feature) {
   for (const row of rows) { for (const k of Object.keys(row)) { if (k !== "condition") set.add(k); } }
   return Array.from(set);
 }
-function getSummaryKeyForFeature(featureKey) { return sharedGetSummaryKeyForFeature(metricObj.value, featureKey); }
+function getSummaryKeyForFeature(featureKey) { return sharedGetSummaryKeyForFeature(props.metricObj, featureKey); }
 function getSummaryTitle(featureKey) { const key = getSummaryKeyForFeature(featureKey); return key ? prettifyLabel(key) : "Summary"; }
 function getConditionsFirstColTitle(feature) { const key = getConditionsKey(feature); return key ? prettifyLabel(key) : "Conditions"; }
 function getConditionsTableTitle(feature) { const key = getConditionsKey(feature); return key ? `${prettifyLabel(key)} Table` : "Conditions Table"; }
 
-onMounted(async () => {
+// FIX: Eliminata la chiamata fuorviante e duplicata verso l'API. Usa i dati del genitore.
+onMounted(() => {
   loadResultSchemas();
-  try {
-    loading.value = true;
-    error.value = "";
-    const res = await fetch("http://127.0.0.1:8000/results/values_to_display");
-    if (!res.ok) throw new Error(await res.text());
-    const data = await res.json();
-    const all = data?.results?.results ?? data?.results ?? data ?? {};
-    metricObj.value = all[metricKey.value];
-
-    if (!metricObj.value) { error.value = `Metric "${metricKey.value}" not found.`; return; }
-
-    featureKeys.value.forEach(ensureFeatureState);
-    if (featureKeys.value.length > 0) activeFeatureTab.value = featureKeys.value[0];
-    
-  } catch (e) {
-    error.value = e?.message || String(e);
-  } finally {
-    loading.value = false;
-  }
+  featureKeys.value.forEach(ensureFeatureState);
+  if (featureKeys.value.length > 0) activeFeatureTab.value = featureKeys.value[0];
 });
 </script>
-
 <template>
   <div class="result-layout">
     

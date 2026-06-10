@@ -11,9 +11,6 @@ import RunModel from "../views/8_Start_Evaluation.vue";
 import ReviewResults from "../views/9_Dashboard_Landing_Page.vue";
 import MetricResults from "../views/10_Dashboard_Results.vue";
 
-
-
-
 const router = createRouter({
   history: createWebHistory(),
   routes: [
@@ -26,12 +23,16 @@ const router = createRouter({
     { path: "/em", component: ExploreMetrics },
     { path: "/rm", component: MetricsParameters },
     { path: "/rm2", component: RunModel },
-    { path: "/r", component: ReviewResults },
+    
+    // --- MODIFICA CRUCIALE QUI ---
+    // Abbiamo cambiato "/r" in "/dashboard/:runId" e aggiunto name: "Dashboard"
+    { path: "/dashboard/:runId", name: "Dashboard", component: ReviewResults }, 
+    
     { path: "/metric/:group/:metric", name: "MetricResults", component: MetricResults },
     { path: "/report/:runId", name: "Report", component: () => import("../views/11_Generate_Report.vue")},
     { path: '/test-surveys', name: 'TestSurveys', component: () => import('../views/test/SurveyManagerView.vue'),
       meta: { title: 'User Testing Questionnaires' }
-    } //map to the different pages
+    }
   ],
 });
 

@@ -1,261 +1,78 @@
 <script setup>
-import { onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 
-onMounted(() => console.log("HOME MOUNTED"));
-
 const router = useRouter();
-const error = ref("");
 
-async function start() {
-  try {
-    error.value = "";
-    const payload = {};
-
-    const res = await fetch("http://127.0.0.1:8000/first_config", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(payload),
-    });
-
-    if (!res.ok) {
-      throw new Error(await res.text());
-    }
-
-    const data = await res.json();
-    localStorage.setItem("config_id", data.config_id);
-    router.push("/su");
-    
-  } catch (e) {
-    error.value = e?.message || String(e);
-    console.error("Failed to create first config:", e);
-  }
+function startExperiment() {
+  router.push("/su");
 }
 </script>
 
 <template>
-  <div class="page-layout">
+  <div class="landing-layout">
     <header class="top-nav">
       <div class="nav-brand">FRIA Project</div>
     </header>
 
     <main class="hero-container">
       <div class="hero-content">
+        <span class="badge">Experiment Mode</span>
         <h1 class="main-title">FRIA Support System</h1>
+        <p class="subtitle">
+          Welcome to the simulated impact assessment for Artificial Intelligence systems. 
+          In this guided user testing session, the calculation phase is automated so you can focus entirely on reviewing results.
+        </p>
 
-        <!-- Nuova lista in stile "Editorial" -->
-        <div class="editorial-list">
-          <!-- Step 1 -->
-          <div class="step-row">
-            <div class="step-number">01</div>
-            <div class="step-text">
-              <h3 class="step-title">Data Selection</h3>
-              <p class="step-desc">Select the dataset for your evaluation.</p>
-            </div>
+        <div class="steps-container">
+          <div class="step-card">
+            <div class="step-number">1</div>
+            <h3>Select Profile</h3>
+            <p>Assume the role of an AI Expert / Auditor to begin the assessment.</p>
           </div>
-
-          <!-- Step 2 -->
-          <div class="step-row">
-            <div class="step-number">02</div>
-            <div class="step-text">
-              <h3 class="step-title">Feature Mapping</h3>
-              <p class="step-desc">Map target variables and configure sensitive features.</p>
-            </div>
+          <div class="step-card">
+            <div class="step-number">2</div>
+            <h3>Choose Case Study</h3>
+            <p>Select one of the pre-calculated evaluation scenarios to audit.</p>
           </div>
-
-          <!-- Step 3 -->
-          <div class="step-row">
-            <div class="step-number">03</div>
-            <div class="step-text">
-              <h3 class="step-title">Metric Configuration</h3>
-              <p class="step-desc">Choose the fundamental rights domains and select metrics to evaluate.</p>
-            </div>
+          <div class="step-card">
+            <div class="step-number">3</div>
+            <h3>Dashboard Review</h3>
+            <p>Analyze statistical metrics, assign Gravity weights, and define Reversibility.</p>
           </div>
-
-          <!-- Step 4 -->
-          <div class="step-row">
-            <div class="step-number">04</div>
-            <div class="step-text">
-              <h3 class="step-title">Algorithmic Evaluation</h3>
-              <p class="step-desc">Run the automated fairness and privacy analysis.</p>
-            </div>
-          </div>
-
-          <!-- Step 5 -->
-          <div class="step-row">
-            <div class="step-number">05</div>
-            <div class="step-text">
-              <h3 class="step-title">Results Dashboard</h3>
-              <p class="step-desc">Review algorithmic results, interact with metrics, and assign human weights.</p>
-            </div>
-          </div>
-
-          <!-- Step 6 -->
-          <div class="step-row">
-            <div class="step-number">06</div>
-            <div class="step-text">
-              <h3 class="step-title">Executive Report</h3>
-              <p class="step-desc">Provide your contextual justifications and export the final capability report.</p>
-            </div>
+          <div class="step-card">
+            <div class="step-number">4</div>
+            <h3>Generate PDF</h3>
+            <p>Export the final FRIA report containing all consolidated risk evaluations.</p>
           </div>
         </div>
 
-        <div class="action-area">
-          <button class="cta-button" @click="start">
-            START A NEW EVALUATION
-          </button>
-          
-          <p class="note-text">
-            This tool guides you step by step. You don't need<br>
-            to write code or understand AI systems.
-          </p>
-          
-          <p v-if="error" class="error-msg">{{ error }}</p>
-        </div>
+        <button class="primary-btn" @click="startExperiment">
+          Start Simulation →
+        </button>
       </div>
     </main>
   </div>
 </template>
 
 <style scoped>
-/* Il layout di base rimane lo stesso minimale */
-.page-layout {
-  min-height: 100vh;
-  background-color: #faf9f8; /* Sfondo leggermente caldo come nel tuo screenshot */
-  display: flex;
-  flex-direction: column;
-}
+.landing-layout { min-height: 100vh; background-color: #faf9f8; display: flex; flex-direction: column; font-family: 'Inter', sans-serif; }
+.top-nav { height: 50px; background-color: #1a1a1a; display: flex; align-items: center; padding: 0 2rem; }
+.nav-brand { color: #fff; font-weight: 600; font-size: 0.9rem; }
 
-.top-nav {
-  height: 50px;
-  background-color: #1a1a1a;
-  display: flex;
-  align-items: center;
-  padding: 0 2rem;
-}
+.hero-container { flex: 1; display: flex; justify-content: center; align-items: center; padding: 4rem 2rem; }
+.hero-content { max-width: 1000px; width: 100%; text-align: center; }
 
-.nav-brand {
-  color: #ffffff;
-  font-family: 'Inter', sans-serif;
-  font-weight: 600;
-  font-size: 0.9rem;
-  letter-spacing: 0.5px;
-}
+.badge { font-size: 0.75rem; font-weight: 700; text-transform: uppercase; letter-spacing: 1px; color: #1243e3; background: #e0e7ff; padding: 6px 12px; border-radius: 4px; display: inline-block; margin-bottom: 1.5rem; }
+.main-title { font-family: 'Instrument Serif', serif; font-size: 5rem; color: #111; margin: 0 0 1.5rem 0; line-height: 1.1; }
+.subtitle { font-size: 1.2rem; color: #555; max-width: 700px; margin: 0 auto 4rem auto; line-height: 1.6; }
 
-.hero-container {
-  flex: 1;
-  display: flex;
-  justify-content: center;
-  align-items: flex-start;
-  padding-top: 6vh; 
-  padding-bottom: 4rem;
-}
+.steps-container { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1.5rem; margin-bottom: 4rem; text-align: left; }
+.step-card { background: #fff; border: 1px solid #e5e5e5; padding: 2rem; border-radius: 12px; position: relative; transition: transform 0.2s; }
+.step-card:hover { transform: translateY(-5px); border-color: #1243e3; box-shadow: 0 10px 25px rgba(18, 67, 227, 0.08); }
+.step-number { width: 32px; height: 32px; background: #1243e3; color: #fff; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: bold; font-family: 'JetBrains Mono', monospace; margin-bottom: 1rem; }
+.step-card h3 { font-size: 1.1rem; color: #111; margin: 0 0 0.5rem 0; }
+.step-card p { font-size: 0.9rem; color: #666; margin: 0; line-height: 1.5; }
 
-.hero-content {
-  max-width: 800px; /* Allargato leggermente per far respirare la lista */
-  width: 100%;
-  padding: 0 2rem;
-}
-
-.main-title {
-  font-family: 'Instrument Serif', serif;
-  font-size: 6rem;
-  color: #1243e3; /* blu navy */
-  font-weight: 500;
-  margin-bottom: 2rem;
-  line-height: 1;
-  text-align: center;
-}
-
-/* =========================================
-   STILI PER LA LISTA EDITORIALE (Screenshot)
-   ========================================= */
-.editorial-list {
-  margin-bottom: 3rem;
-  border-bottom: 1px solid #e5e5e5; /* La linea di chiusura dell'ultimo elemento */
-}
-
-.step-row {
-  display: flex;
-  align-items: flex-start;
-  padding: 1rem 0;
-  border-top: 1px solid #e5e5e5; /* La linea sottile che separa gli elementi */
-}
-
-.step-number {
-  font-family: 'Inter', sans-serif;
-  font-size: 0.9rem;
-  font-weight: 500;
-  color: #888888; /* Grigio tenue per i numeri */
-  width: 80px; /* Mantiene i titoli allineati a destra del numero */
-  padding-top: 0.5rem; /* Allinea il numero al titolo */
-}
-
-.step-text {
-  flex: 1;
-}
-
-.step-title {
-  font-family: 'Instrument Serif', serif;
-  font-size: 2.1rem;
-  color: #111111; /* Quasi nero */
-  font-weight: 400;
-  margin: 0 0 0.3rem 0;
-  letter-spacing: 0.3px;
-}
-
-.step-desc {
-  font-family: 'Inter', sans-serif;
-  font-size: 1.1rem;
-  color: #444444;
-  line-height: 1.6;
-  margin: 0;
-}
-
-/* =========================================
-   BOTTONE E FOOTER
-   ========================================= */
-.action-area {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-}
-
-.cta-button {
-  background-color: #ffffff;
-  color: #111111;
-  font-family: 'Inter', sans-serif;
-  font-weight: 600;
-  font-size: 1rem;
-  letter-spacing: 1px;
-  padding: 1.2rem 3rem;
-  border: 1px solid #111111;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  margin-bottom: 1rem;
-}
-
-.cta-button:hover {
-  background-color: #1243e3;
-  color: #ffffff;
-}
-
-.note-text {
-  font-family: 'Inter', sans-serif;
-  font-size: 0.9rem;
-  color: #777777;
-  line-height: 1.5;
-  text-align: center;
-}
-
-.error-msg {
-  margin-top: 1rem;
-  color: #d32f2f;
-  font-family: 'Inter', sans-serif;
-  font-size: 0.9rem;
-  font-weight: 500;
-}
+.primary-btn { font-size: 1.1rem; font-weight: 600; background: #1243e3; color: #fff; border: none; padding: 1rem 2.5rem; border-radius: 8px; cursor: pointer; transition: 0.2s; }
+.primary-btn:hover { background: #0f36b3; transform: scale(1.02); }
 </style>

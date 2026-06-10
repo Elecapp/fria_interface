@@ -1,16 +1,1206 @@
 {
-  "new_metric": {
-    "(global)": {
+  "anonymity_set_size": {
+    "metric": "Anonymity Set Size",
+    "status": "success",
+    "average": 12.5,
+    "min": 7,
+    "max": 18,
+    "unique_combinations": 8,
+    "total_records": 100,
+    "sensitive_features": [
+      "gender",
+      "eta_intervallo"
+    ],
+    "final_score": 9.200000000000001,
+    "full_results": [
+      {
+        "gender": "F",
+        "eta_intervallo": "31-45",
+        "count": 18
+      },
+      {
+        "gender": "M",
+        "eta_intervallo": "46-60",
+        "count": 17
+      },
+      {
+        "gender": "M",
+        "eta_intervallo": "18-30",
+        "count": 15
+      },
+      {
+        "gender": "F",
+        "eta_intervallo": "46-60",
+        "count": 14
+      },
+      {
+        "gender": "M",
+        "eta_intervallo": "31-45",
+        "count": 14
+      },
+      {
+        "gender": "M",
+        "eta_intervallo": "61+",
+        "count": 8
+      },
+      {
+        "gender": "F",
+        "eta_intervallo": "61+",
+        "count": 7
+      },
+      {
+        "gender": "F",
+        "eta_intervallo": "18-30",
+        "count": 7
+      }
+    ]
+  },
+  "k_anonymity": {
+    "metric": "K-Anonymity",
+    "status": "success",
+    "k_value": 2,
+    "total_groups": 98,
+    "min_group_size": 1,
+    "max_group_size": 2,
+    "avg_group_size": 1.02,
+    "compliance": false,
+    "compliance_percentage": 2.04,
+    "quasi_identifiers": [
+      "eta_intervallo",
+      "residenza_zona",
+      "reddito_annuo_eur"
+    ],
+    "final_score": 5.1,
+    "full_results": [
+      {
+        "eta_intervallo": "18-30",
+        "residenza_zona": "centro",
+        "reddito_annuo_eur": 9000,
+        "count": 2,
+        "compliant": true
+      },
+      {
+        "eta_intervallo": "18-30",
+        "residenza_zona": "centro",
+        "reddito_annuo_eur": 13500,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "eta_intervallo": "18-30",
+        "residenza_zona": "centro",
+        "reddito_annuo_eur": 23500,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "eta_intervallo": "18-30",
+        "residenza_zona": "centro",
+        "reddito_annuo_eur": 45000,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "eta_intervallo": "18-30",
+        "residenza_zona": "periferia",
+        "reddito_annuo_eur": 18000,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "eta_intervallo": "18-30",
+        "residenza_zona": "periferia",
+        "reddito_annuo_eur": 46000,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "eta_intervallo": "18-30",
+        "residenza_zona": "zona_est",
+        "reddito_annuo_eur": 38500,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "eta_intervallo": "18-30",
+        "residenza_zona": "zona_est",
+        "reddito_annuo_eur": 40000,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "eta_intervallo": "18-30",
+        "residenza_zona": "zona_nord",
+        "reddito_annuo_eur": 9000,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "eta_intervallo": "18-30",
+        "residenza_zona": "zona_nord",
+        "reddito_annuo_eur": 13500,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "eta_intervallo": "18-30",
+        "residenza_zona": "zona_nord",
+        "reddito_annuo_eur": 34500,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "eta_intervallo": "18-30",
+        "residenza_zona": "zona_ovest",
+        "reddito_annuo_eur": 9000,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "eta_intervallo": "18-30",
+        "residenza_zona": "zona_ovest",
+        "reddito_annuo_eur": 22000,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "eta_intervallo": "18-30",
+        "residenza_zona": "zona_ovest",
+        "reddito_annuo_eur": 24000,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "eta_intervallo": "18-30",
+        "residenza_zona": "zona_ovest",
+        "reddito_annuo_eur": 24500,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "eta_intervallo": "18-30",
+        "residenza_zona": "zona_ovest",
+        "reddito_annuo_eur": 27500,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "eta_intervallo": "18-30",
+        "residenza_zona": "zona_sud",
+        "reddito_annuo_eur": 17500,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "eta_intervallo": "18-30",
+        "residenza_zona": "zona_sud",
+        "reddito_annuo_eur": 22500,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "eta_intervallo": "18-30",
+        "residenza_zona": "zona_sud",
+        "reddito_annuo_eur": 23000,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "eta_intervallo": "18-30",
+        "residenza_zona": "zona_sud",
+        "reddito_annuo_eur": 27500,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "eta_intervallo": "18-30",
+        "residenza_zona": "zona_sud",
+        "reddito_annuo_eur": 33000,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "eta_intervallo": "31-45",
+        "residenza_zona": "centro",
+        "reddito_annuo_eur": 18000,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "eta_intervallo": "31-45",
+        "residenza_zona": "centro",
+        "reddito_annuo_eur": 29500,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "eta_intervallo": "31-45",
+        "residenza_zona": "centro",
+        "reddito_annuo_eur": 36000,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "eta_intervallo": "31-45",
+        "residenza_zona": "centro",
+        "reddito_annuo_eur": 40500,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "eta_intervallo": "31-45",
+        "residenza_zona": "centro",
+        "reddito_annuo_eur": 43000,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "eta_intervallo": "31-45",
+        "residenza_zona": "centro",
+        "reddito_annuo_eur": 46000,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "eta_intervallo": "31-45",
+        "residenza_zona": "centro",
+        "reddito_annuo_eur": 51500,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "eta_intervallo": "31-45",
+        "residenza_zona": "periferia",
+        "reddito_annuo_eur": 28500,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "eta_intervallo": "31-45",
+        "residenza_zona": "periferia",
+        "reddito_annuo_eur": 37500,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "eta_intervallo": "31-45",
+        "residenza_zona": "periferia",
+        "reddito_annuo_eur": 38000,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "eta_intervallo": "31-45",
+        "residenza_zona": "zona_est",
+        "reddito_annuo_eur": 20500,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "eta_intervallo": "31-45",
+        "residenza_zona": "zona_est",
+        "reddito_annuo_eur": 22500,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "eta_intervallo": "31-45",
+        "residenza_zona": "zona_est",
+        "reddito_annuo_eur": 43000,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "eta_intervallo": "31-45",
+        "residenza_zona": "zona_est",
+        "reddito_annuo_eur": 44500,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "eta_intervallo": "31-45",
+        "residenza_zona": "zona_est",
+        "reddito_annuo_eur": 55000,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "eta_intervallo": "31-45",
+        "residenza_zona": "zona_est",
+        "reddito_annuo_eur": 59000,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "eta_intervallo": "31-45",
+        "residenza_zona": "zona_est",
+        "reddito_annuo_eur": 59500,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "eta_intervallo": "31-45",
+        "residenza_zona": "zona_est",
+        "reddito_annuo_eur": 61500,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "eta_intervallo": "31-45",
+        "residenza_zona": "zona_nord",
+        "reddito_annuo_eur": 32000,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "eta_intervallo": "31-45",
+        "residenza_zona": "zona_nord",
+        "reddito_annuo_eur": 42000,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "eta_intervallo": "31-45",
+        "residenza_zona": "zona_nord",
+        "reddito_annuo_eur": 54000,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "eta_intervallo": "31-45",
+        "residenza_zona": "zona_nord",
+        "reddito_annuo_eur": 58500,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "eta_intervallo": "31-45",
+        "residenza_zona": "zona_ovest",
+        "reddito_annuo_eur": 37000,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "eta_intervallo": "31-45",
+        "residenza_zona": "zona_ovest",
+        "reddito_annuo_eur": 39000,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "eta_intervallo": "31-45",
+        "residenza_zona": "zona_ovest",
+        "reddito_annuo_eur": 45500,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "eta_intervallo": "31-45",
+        "residenza_zona": "zona_ovest",
+        "reddito_annuo_eur": 51500,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "eta_intervallo": "31-45",
+        "residenza_zona": "zona_ovest",
+        "reddito_annuo_eur": 59000,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "eta_intervallo": "31-45",
+        "residenza_zona": "zona_sud",
+        "reddito_annuo_eur": 11500,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "eta_intervallo": "31-45",
+        "residenza_zona": "zona_sud",
+        "reddito_annuo_eur": 31000,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "eta_intervallo": "31-45",
+        "residenza_zona": "zona_sud",
+        "reddito_annuo_eur": 41000,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "eta_intervallo": "31-45",
+        "residenza_zona": "zona_sud",
+        "reddito_annuo_eur": 48000,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "eta_intervallo": "31-45",
+        "residenza_zona": "zona_sud",
+        "reddito_annuo_eur": 56500,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "eta_intervallo": "46-60",
+        "residenza_zona": "centro",
+        "reddito_annuo_eur": 37500,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "eta_intervallo": "46-60",
+        "residenza_zona": "centro",
+        "reddito_annuo_eur": 49500,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "eta_intervallo": "46-60",
+        "residenza_zona": "centro",
+        "reddito_annuo_eur": 51500,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "eta_intervallo": "46-60",
+        "residenza_zona": "centro",
+        "reddito_annuo_eur": 56000,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "eta_intervallo": "46-60",
+        "residenza_zona": "periferia",
+        "reddito_annuo_eur": 29500,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "eta_intervallo": "46-60",
+        "residenza_zona": "periferia",
+        "reddito_annuo_eur": 44000,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "eta_intervallo": "46-60",
+        "residenza_zona": "periferia",
+        "reddito_annuo_eur": 49500,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "eta_intervallo": "46-60",
+        "residenza_zona": "zona_est",
+        "reddito_annuo_eur": 25500,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "eta_intervallo": "46-60",
+        "residenza_zona": "zona_est",
+        "reddito_annuo_eur": 39500,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "eta_intervallo": "46-60",
+        "residenza_zona": "zona_est",
+        "reddito_annuo_eur": 43500,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "eta_intervallo": "46-60",
+        "residenza_zona": "zona_est",
+        "reddito_annuo_eur": 47000,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "eta_intervallo": "46-60",
+        "residenza_zona": "zona_est",
+        "reddito_annuo_eur": 51500,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "eta_intervallo": "46-60",
+        "residenza_zona": "zona_est",
+        "reddito_annuo_eur": 56500,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "eta_intervallo": "46-60",
+        "residenza_zona": "zona_est",
+        "reddito_annuo_eur": 69500,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "eta_intervallo": "46-60",
+        "residenza_zona": "zona_est",
+        "reddito_annuo_eur": 71500,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "eta_intervallo": "46-60",
+        "residenza_zona": "zona_nord",
+        "reddito_annuo_eur": 42000,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "eta_intervallo": "46-60",
+        "residenza_zona": "zona_nord",
+        "reddito_annuo_eur": 61500,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "eta_intervallo": "46-60",
+        "residenza_zona": "zona_ovest",
+        "reddito_annuo_eur": 47000,
+        "count": 2,
+        "compliant": true
+      },
+      {
+        "eta_intervallo": "46-60",
+        "residenza_zona": "zona_ovest",
+        "reddito_annuo_eur": 52000,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "eta_intervallo": "46-60",
+        "residenza_zona": "zona_ovest",
+        "reddito_annuo_eur": 60000,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "eta_intervallo": "46-60",
+        "residenza_zona": "zona_ovest",
+        "reddito_annuo_eur": 62500,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "eta_intervallo": "46-60",
+        "residenza_zona": "zona_sud",
+        "reddito_annuo_eur": 34000,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "eta_intervallo": "46-60",
+        "residenza_zona": "zona_sud",
+        "reddito_annuo_eur": 45500,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "eta_intervallo": "46-60",
+        "residenza_zona": "zona_sud",
+        "reddito_annuo_eur": 46000,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "eta_intervallo": "46-60",
+        "residenza_zona": "zona_sud",
+        "reddito_annuo_eur": 49000,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "eta_intervallo": "46-60",
+        "residenza_zona": "zona_sud",
+        "reddito_annuo_eur": 51500,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "eta_intervallo": "46-60",
+        "residenza_zona": "zona_sud",
+        "reddito_annuo_eur": 56500,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "eta_intervallo": "46-60",
+        "residenza_zona": "zona_sud",
+        "reddito_annuo_eur": 59500,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "eta_intervallo": "46-60",
+        "residenza_zona": "zona_sud",
+        "reddito_annuo_eur": 60500,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "eta_intervallo": "46-60",
+        "residenza_zona": "zona_sud",
+        "reddito_annuo_eur": 69500,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "eta_intervallo": "61+",
+        "residenza_zona": "centro",
+        "reddito_annuo_eur": 43500,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "eta_intervallo": "61+",
+        "residenza_zona": "periferia",
+        "reddito_annuo_eur": 50000,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "eta_intervallo": "61+",
+        "residenza_zona": "zona_est",
+        "reddito_annuo_eur": 41000,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "eta_intervallo": "61+",
+        "residenza_zona": "zona_est",
+        "reddito_annuo_eur": 45500,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "eta_intervallo": "61+",
+        "residenza_zona": "zona_nord",
+        "reddito_annuo_eur": 33500,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "eta_intervallo": "61+",
+        "residenza_zona": "zona_nord",
+        "reddito_annuo_eur": 43500,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "eta_intervallo": "61+",
+        "residenza_zona": "zona_ovest",
+        "reddito_annuo_eur": 15000,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "eta_intervallo": "61+",
+        "residenza_zona": "zona_ovest",
+        "reddito_annuo_eur": 30500,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "eta_intervallo": "61+",
+        "residenza_zona": "zona_ovest",
+        "reddito_annuo_eur": 33500,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "eta_intervallo": "61+",
+        "residenza_zona": "zona_sud",
+        "reddito_annuo_eur": 27000,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "eta_intervallo": "61+",
+        "residenza_zona": "zona_sud",
+        "reddito_annuo_eur": 27500,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "eta_intervallo": "61+",
+        "residenza_zona": "zona_sud",
+        "reddito_annuo_eur": 38000,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "eta_intervallo": "61+",
+        "residenza_zona": "zona_sud",
+        "reddito_annuo_eur": 40500,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "eta_intervallo": "61+",
+        "residenza_zona": "zona_sud",
+        "reddito_annuo_eur": 41500,
+        "count": 1,
+        "compliant": false
+      },
+      {
+        "eta_intervallo": "61+",
+        "residenza_zona": "zona_sud",
+        "reddito_annuo_eur": 52000,
+        "count": 1,
+        "compliant": false
+      }
+    ]
+  },
+  "l_diversity": {
+    "metric": "L-Diversity",
+    "status": "success",
+    "l_min": 1,
+    "l_avg": 1.372093023255814,
+    "total_groups": 43,
+    "quasi_identifiers": [
+      "gender",
+      "eta_intervallo",
+      "residenza_zona"
+    ],
+    "sensitive_attribute": "esito_mutuo",
+    "full_results": [
+      {
+        "gender": "F",
+        "eta_intervallo": "18-30",
+        "residenza_zona": "centro",
+        "l": 1
+      },
+      {
+        "gender": "F",
+        "eta_intervallo": "18-30",
+        "residenza_zona": "periferia",
+        "l": 1
+      },
+      {
+        "gender": "F",
+        "eta_intervallo": "18-30",
+        "residenza_zona": "zona_est",
+        "l": 1
+      },
+      {
+        "gender": "F",
+        "eta_intervallo": "18-30",
+        "residenza_zona": "zona_nord",
+        "l": 1
+      },
+      {
+        "gender": "F",
+        "eta_intervallo": "18-30",
+        "residenza_zona": "zona_ovest",
+        "l": 1
+      },
+      {
+        "gender": "F",
+        "eta_intervallo": "18-30",
+        "residenza_zona": "zona_sud",
+        "l": 1
+      },
+      {
+        "gender": "F",
+        "eta_intervallo": "31-45",
+        "residenza_zona": "centro",
+        "l": 2
+      },
+      {
+        "gender": "F",
+        "eta_intervallo": "31-45",
+        "residenza_zona": "periferia",
+        "l": 1
+      },
+      {
+        "gender": "F",
+        "eta_intervallo": "31-45",
+        "residenza_zona": "zona_est",
+        "l": 2
+      },
+      {
+        "gender": "F",
+        "eta_intervallo": "31-45",
+        "residenza_zona": "zona_nord",
+        "l": 1
+      },
+      {
+        "gender": "F",
+        "eta_intervallo": "31-45",
+        "residenza_zona": "zona_ovest",
+        "l": 1
+      },
+      {
+        "gender": "F",
+        "eta_intervallo": "31-45",
+        "residenza_zona": "zona_sud",
+        "l": 2
+      },
+      {
+        "gender": "F",
+        "eta_intervallo": "46-60",
+        "residenza_zona": "periferia",
+        "l": 2
+      },
+      {
+        "gender": "F",
+        "eta_intervallo": "46-60",
+        "residenza_zona": "zona_est",
+        "l": 2
+      },
+      {
+        "gender": "F",
+        "eta_intervallo": "46-60",
+        "residenza_zona": "zona_nord",
+        "l": 1
+      },
+      {
+        "gender": "F",
+        "eta_intervallo": "46-60",
+        "residenza_zona": "zona_ovest",
+        "l": 1
+      },
+      {
+        "gender": "F",
+        "eta_intervallo": "46-60",
+        "residenza_zona": "zona_sud",
+        "l": 2
+      },
+      {
+        "gender": "F",
+        "eta_intervallo": "61+",
+        "residenza_zona": "periferia",
+        "l": 1
+      },
+      {
+        "gender": "F",
+        "eta_intervallo": "61+",
+        "residenza_zona": "zona_nord",
+        "l": 1
+      },
+      {
+        "gender": "F",
+        "eta_intervallo": "61+",
+        "residenza_zona": "zona_ovest",
+        "l": 1
+      },
+      {
+        "gender": "F",
+        "eta_intervallo": "61+",
+        "residenza_zona": "zona_sud",
+        "l": 2
+      },
+      {
+        "gender": "M",
+        "eta_intervallo": "18-30",
+        "residenza_zona": "centro",
+        "l": 2
+      },
+      {
+        "gender": "M",
+        "eta_intervallo": "18-30",
+        "residenza_zona": "periferia",
+        "l": 1
+      },
+      {
+        "gender": "M",
+        "eta_intervallo": "18-30",
+        "residenza_zona": "zona_est",
+        "l": 1
+      },
+      {
+        "gender": "M",
+        "eta_intervallo": "18-30",
+        "residenza_zona": "zona_nord",
+        "l": 1
+      },
+      {
+        "gender": "M",
+        "eta_intervallo": "18-30",
+        "residenza_zona": "zona_ovest",
+        "l": 2
+      },
+      {
+        "gender": "M",
+        "eta_intervallo": "18-30",
+        "residenza_zona": "zona_sud",
+        "l": 2
+      },
+      {
+        "gender": "M",
+        "eta_intervallo": "31-45",
+        "residenza_zona": "centro",
+        "l": 2
+      },
+      {
+        "gender": "M",
+        "eta_intervallo": "31-45",
+        "residenza_zona": "periferia",
+        "l": 1
+      },
+      {
+        "gender": "M",
+        "eta_intervallo": "31-45",
+        "residenza_zona": "zona_est",
+        "l": 1
+      },
+      {
+        "gender": "M",
+        "eta_intervallo": "31-45",
+        "residenza_zona": "zona_nord",
+        "l": 2
+      },
+      {
+        "gender": "M",
+        "eta_intervallo": "31-45",
+        "residenza_zona": "zona_ovest",
+        "l": 2
+      },
+      {
+        "gender": "M",
+        "eta_intervallo": "31-45",
+        "residenza_zona": "zona_sud",
+        "l": 1
+      },
+      {
+        "gender": "M",
+        "eta_intervallo": "46-60",
+        "residenza_zona": "centro",
+        "l": 1
+      },
+      {
+        "gender": "M",
+        "eta_intervallo": "46-60",
+        "residenza_zona": "periferia",
+        "l": 1
+      },
+      {
+        "gender": "M",
+        "eta_intervallo": "46-60",
+        "residenza_zona": "zona_est",
+        "l": 1
+      },
+      {
+        "gender": "M",
+        "eta_intervallo": "46-60",
+        "residenza_zona": "zona_nord",
+        "l": 1
+      },
+      {
+        "gender": "M",
+        "eta_intervallo": "46-60",
+        "residenza_zona": "zona_ovest",
+        "l": 1
+      },
+      {
+        "gender": "M",
+        "eta_intervallo": "46-60",
+        "residenza_zona": "zona_sud",
+        "l": 2
+      },
+      {
+        "gender": "M",
+        "eta_intervallo": "61+",
+        "residenza_zona": "centro",
+        "l": 1
+      },
+      {
+        "gender": "M",
+        "eta_intervallo": "61+",
+        "residenza_zona": "zona_est",
+        "l": 2
+      },
+      {
+        "gender": "M",
+        "eta_intervallo": "61+",
+        "residenza_zona": "zona_ovest",
+        "l": 1
+      },
+      {
+        "gender": "M",
+        "eta_intervallo": "61+",
+        "residenza_zona": "zona_sud",
+        "l": 2
+      }
+    ],
+    "final_score": 6.86
+  },
+  "mutual_information_metric": {
+    "metric": "Mutual Information",
+    "status": "success",
+    "total_mi": 2.3095111227542375,
+    "sensitive_attribute": "eta_intervallo",
+    "final_score": 6.978,
+    "full_results": [
+      {
+        "feature": "applicant_id",
+        "mutual_information": 1.3453617937976232
+      },
+      {
+        "feature": "anni_impiego",
+        "mutual_information": 0.32039353476044674
+      },
+      {
+        "feature": "reddito_annuo_eur",
+        "mutual_information": 0.21791454090789086
+      },
+      {
+        "feature": "tipo_contratto",
+        "mutual_information": 0.13928281632059764
+      },
+      {
+        "feature": "credit_score",
+        "mutual_information": 0.09964264165625814
+      },
+      {
+        "feature": "debito_esistente_eur",
+        "mutual_information": 0.05831239099146712
+      },
+      {
+        "feature": "residenza_zona",
+        "mutual_information": 0.0471277585234056
+      },
+      {
+        "feature": "importo_mutuo_richiesto_eur",
+        "mutual_information": 0.038364848691197384
+      },
+      {
+        "feature": "valore_immobile_eur",
+        "mutual_information": 0.020099982766657476
+      },
+      {
+        "feature": "gender",
+        "mutual_information": 0.015974877838532076
+      },
+      {
+        "feature": "default_storico",
+        "mutual_information": 0.007035936500161655
+      },
+      {
+        "feature": "durata_mutuo_anni",
+        "mutual_information": 0.0
+      },
+      {
+        "feature": "numero_persone_carico",
+        "mutual_information": 0.0
+      }
+    ]
+  },
+  "t_closeness": {
+    "status": "error",
+    "message": "'esito_mutuo'"
+  },
+  "conditional_statistical_parity": {
+    "gender": {
+      "metric": "Conditional Statistical Parity",
       "status": "success",
-      "metric": "New Metric",
-      "used_column": "reddito_annuo_eur",
-      "mean": 39990.0,
-      "median": 41750.0,
-      "ratio_rule": "median/mean",
-      "computed": 1.0440110027506877,
-      "threshold": 3.0,
-      "result": 1.0440110027506877,
-      "final_score": 10.440110027506877
+      "conditional_variable": "esito_mutuo",
+      "sensitive_feature": "gender",
+      "conditions": {
+        "approvato": {
+          "F": 0.0,
+          "M": 0.0,
+          "raw_difference": 0.0,
+          "normalized_score": 1.0,
+          "weight": 0.63,
+          "total_samples": 63
+        },
+        "rifiutato": {
+          "F": 0.0,
+          "M": 0.0,
+          "raw_difference": 0.0,
+          "normalized_score": 1.0,
+          "weight": 0.37,
+          "total_samples": 37
+        }
+      },
+      "disparity_summary": {
+        "raw_average": 0.0,
+        "raw_max": 0.0,
+        "raw_min": 0.0,
+        "normalized_average": 1.0,
+        "normalized_max": 1.0,
+        "normalized_min": 1.0,
+        "processed_conditions": 2,
+        "total_samples": 100,
+        "final_score": 10.0
+      }
+    },
+    "eta_intervallo": {
+      "metric": "Conditional Statistical Parity",
+      "status": "success",
+      "conditional_variable": "esito_mutuo",
+      "sensitive_feature": "eta_intervallo",
+      "conditions": {
+        "approvato": {
+          "18-30": 0.0,
+          "31-45": 0.0,
+          "46-60": 0.0,
+          "61+": 0.0,
+          "raw_difference": 0.0,
+          "normalized_score": 1.0,
+          "weight": 0.63,
+          "total_samples": 63
+        },
+        "rifiutato": {
+          "18-30": 0.0,
+          "31-45": 0.0,
+          "46-60": 0.0,
+          "61+": 0.0,
+          "raw_difference": 0.0,
+          "normalized_score": 1.0,
+          "weight": 0.37,
+          "total_samples": 37
+        }
+      },
+      "disparity_summary": {
+        "raw_average": 0.0,
+        "raw_max": 0.0,
+        "raw_min": 0.0,
+        "normalized_average": 1.0,
+        "normalized_max": 1.0,
+        "normalized_min": 1.0,
+        "processed_conditions": 2,
+        "total_samples": 100,
+        "final_score": 10.0
+      }
+    }
+  },
+  "conditional_use_accuracy_equality": {
+    "gender": {
+      "metric": "Conditional Use Accuracy Equality",
+      "status": "success",
+      "sensitive_feature": "gender",
+      "accuracy_by_group": {
+        "F": 1.0,
+        "M": 1.0
+      },
+      "difference": 0.0,
+      "normalized_score": 1.0,
+      "final_score": 10.0
+    },
+    "eta_intervallo": {
+      "metric": "Conditional Use Accuracy Equality",
+      "status": "success",
+      "sensitive_feature": "eta_intervallo",
+      "accuracy_by_group": {
+        "18-30": 1.0,
+        "31-45": 1.0,
+        "46-60": 1.0,
+        "61+": 1.0
+      },
+      "difference": 0.0,
+      "normalized_score": 1.0,
+      "final_score": 10.0
     }
   },
   "demographic_parity": {
@@ -65,6 +1255,32 @@
       "final_score": NaN
     }
   },
+  "equal_opportunity": {
+    "gender": {
+      "metric": "Equal Opportunity",
+      "status": "success",
+      "sensitive_feature": "gender",
+      "tpr_by_group": {
+        "F": 1.0,
+        "M": 1.0
+      },
+      "difference": 0.0,
+      "final_score": 10.0
+    },
+    "eta_intervallo": {
+      "metric": "Equal Opportunity",
+      "status": "success",
+      "sensitive_feature": "eta_intervallo",
+      "tpr_by_group": {
+        "18-30": 1.0,
+        "31-45": 1.0,
+        "46-60": 1.0,
+        "61+": 1.0
+      },
+      "difference": 0.0,
+      "final_score": 10.0
+    }
+  },
   "equalized_odds_difference": {
     "gender": {
       "metric": "Equalized Odds Difference",
@@ -105,6 +1321,64 @@
           "TPR": 1.0
         }
       },
+      "difference": 0.0,
+      "final_score": 10.0
+    }
+  },
+  "overall_accuracy_equality": {
+    "gender": {
+      "metric": "Overall Accuracy Equality",
+      "status": "success",
+      "sensitive_feature": "gender",
+      "accuracy_by_group": {
+        "F": 1.0,
+        "M": 1.0
+      },
+      "accuracy_ratio": 1.0,
+      "difference": 0.0,
+      "equality_score": 1.0,
+      "final_score": 10.0
+    },
+    "eta_intervallo": {
+      "metric": "Overall Accuracy Equality",
+      "status": "success",
+      "sensitive_feature": "eta_intervallo",
+      "accuracy_by_group": {
+        "18-30": 1.0,
+        "31-45": 1.0,
+        "46-60": 1.0,
+        "61+": 1.0
+      },
+      "accuracy_ratio": 1.0,
+      "difference": 0.0,
+      "equality_score": 1.0,
+      "final_score": 10.0
+    }
+  },
+  "predictive_parity": {
+    "gender": {
+      "metric": "Predictive Parity",
+      "status": "success",
+      "sensitive_feature": "gender",
+      "precision_by_group": {
+        "F": 1.0,
+        "M": 1.0
+      },
+      "precision_ratio": 1.0,
+      "difference": 0.0,
+      "final_score": 10.0
+    },
+    "eta_intervallo": {
+      "metric": "Predictive Parity",
+      "status": "success",
+      "sensitive_feature": "eta_intervallo",
+      "precision_by_group": {
+        "18-30": 1.0,
+        "31-45": 1.0,
+        "46-60": 1.0,
+        "61+": 1.0
+      },
+      "precision_ratio": 1.0,
       "difference": 0.0,
       "final_score": 10.0
     }
