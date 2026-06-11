@@ -1,5 +1,6 @@
 
 <script setup>
+import { API_HOST } from "../../utils/config";
 import { computed, onMounted, ref } from "vue";
 import { useRoute } from "vue-router";
 import {
@@ -96,7 +97,7 @@ async function saveFeature(feature) {
     payload.gravity = gravityValue;
     payload.reversibility = reversibilityValue;
 
-    const resp = await fetch("http://127.0.0.1:8000/results/save_weights", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+    const resp = await fetch(`${API_HOST}/results/save_weights`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
     if (!resp.ok) throw new Error("Failed to save feature");
     savedFeatures.value[feature] = true; saveOk.value = true;
   } catch (e) { saveError.value = e?.message || String(e); } finally { saving.value = false; }
@@ -115,7 +116,7 @@ async function saveMissingFeaturesWithDefaultWeight() {
       });
       payload.gravity = DEFAULT_GRAVITY;
       payload.reversibility = false;
-      await fetch("http://127.0.0.1:8000/results/save_weights", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      await fetch(`${API_HOST}/results/save_weights`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
       featureGravity.value[feature] = DEFAULT_GRAVITY; featureJustifications.value[feature] = DEFAULT_WEIGHT_JUSTIFICATION; savedFeatures.value[feature] = true;
     }
   } catch (e) { console.error(e); } finally { saving.value = false; }
@@ -135,7 +136,7 @@ const schemaTypeReport = computed(() => resultSchemas.value?.[props.metricKey]?.
 
 async function loadResultSchemas() {
   try {
-    const resp = await fetch(`http://127.0.0.1:8000/results/result_schemas?run_id=${encodeURIComponent(props.runId)}`);
+    const resp = await fetch(`${API_HOST}/results/result_schemas?run_id=${encodeURIComponent(props.runId)}`);
     if (resp.ok) resultSchemas.value = await resp.json();
   } catch (e) {}
 }

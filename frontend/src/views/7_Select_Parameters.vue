@@ -1,4 +1,5 @@
 <script setup>
+import { API_HOST } from "../utils/config";
 import { onMounted, ref, computed } from "vue";
 import { useRouter } from "vue-router";
 import ProcessStepper from "../components/ProcessStepper.vue";
@@ -128,7 +129,7 @@ function buildPayload() {
 }
 
 async function fetchLatestConfig() {
-  const res = await fetch("http://127.0.0.1:8000/configs/latest");
+  const res = await fetch(`${API_HOST}/configs/latest`);
   if (!res.ok) throw new Error("Failed to fetch configuration");
   const payload = await res.json();
   const c = payload.config || payload;
@@ -137,13 +138,13 @@ async function fetchLatestConfig() {
 }
 
 async function fetchPluginRegistry() {
-  const res = await fetch("http://127.0.0.1:8000/plugin-registry");
+  const res = await fetch(`${API_HOST}/plugin-registry`);
   if (!res.ok) throw new Error("Failed to fetch plugin registry");
   pluginRegistry.value = await res.json();
 }
 
 async function fetchLatestColumns() {
-  const res = await fetch("http://127.0.0.1:8000/headers");
+  const res = await fetch(`${API_HOST}/headers`);
   if (!res.ok) throw new Error("Failed to fetch dataset columns");
   const data = await res.json();
   columns.value = Array.isArray(data?.columns) ? data.columns : [];
@@ -160,7 +161,7 @@ async function goNext() {
   try {
     const payload = buildPayload();
     if (Object.keys(payload).length > 0) {
-      const res = await fetch("http://127.0.0.1:8000/configs/parameters", {
+      const res = await fetch(`${API_HOST}/configs/parameters`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),

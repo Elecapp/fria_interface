@@ -1,4 +1,5 @@
 <script setup>
+import { API_HOST } from "../utils/config";
 import { onMounted, ref, computed } from "vue";
 import { useRouter, useRoute } from "vue-router";
 import ProcessStepper from "../components/ProcessStepper.vue";
@@ -49,7 +50,7 @@ async function saveDomainReversibility(groupName) {
       reversibility: isReversible
     };
     // ORA È ATTIVO!
-    await fetch("http://127.0.0.1:8000/results/save_domain_config", {
+    await fetch(`${API_HOST}/results/save_domain_config`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload)
@@ -62,7 +63,7 @@ async function saveDomainReversibility(groupName) {
 async function resetRun() {
   if (!confirm("Sei sicuro? Questa azione eliminerà tutti i pesi e i report salvati. Ripartirai da zero.")) return;
   try {
-    const res = await fetch("http://127.0.0.1:8000/results/purge_run", {
+    const res = await fetch(`${API_HOST}/results/purge_run`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ run_id: runId.value })
@@ -120,7 +121,7 @@ async function fetchData() {
     // Legge il runId DALL'URL (Fiducia nell'URL)
     runId.value = route.params.runId || "";
 
-    let fetchUrl = "http://127.0.0.1:8000/results/values_to_display";
+    let fetchUrl = `${API_HOST}/results/values_to_display`;
     if (runId.value) fetchUrl += `?run_id=${runId.value}`;
     
     const results = await fetch(fetchUrl);
@@ -130,13 +131,13 @@ async function fetchData() {
     latestResults.value = valsData?.results?.results ? valsData.results : valsData;
     
     // Scarica gli Schemi
-    const schemasResp = await fetch(`http://127.0.0.1:8000/results/result_schemas?run_id=${encodeURIComponent(runId.value)}`);
+    const schemasResp = await fetch(`${API_HOST}/results/result_schemas?run_id=${encodeURIComponent(runId.value)}`);
     if (!schemasResp.ok) throw new Error(await schemasResp.text());
     resultSchemas.value = await schemasResp.json();
 
     // Tenta di scaricare il Report (Se dà 404 è normale, vuol dire che l'utente non ha salvato nulla)
     try {
-      const reportResp = await fetch(`http://127.0.0.1:8000/results/${runId.value}_report`);
+      const reportResp = await fetch(`${API_HOST}/results/${runId.value}_report`);
       if (reportResp.ok) {
         existingReport.value = await reportResp.json();
       } else {
@@ -207,12 +208,12 @@ async function buildReportPayloadWithDefaults() {
 
       if (schemaType === "card_map") {
         const payload = buildCardMapSavePayload({ runId: runId.value, group: groupName, metric, schemaType, metricObj, userWeight: getSavedGlobalWeight(metric), userJustification: getSavedGlobalJustification(metric) });
-        await fetch("http://127.0.0.1:8000/results/save_weights", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+        await fetch(`${API_HOST}/results/save_weights`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
         continue;
       }
       if (schemaType === "record_with_table") {
         const payload = buildRecordWithTableSavePayload({ runId: runId.value, group: groupName, metric, metricObj, userWeight: getSavedMetricWeight(metric), userJustification: getSavedMetricJustification(metric) });
-        await fetch("http://127.0.0.1:8000/results/save_weights", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+        await fetch(`${API_HOST}/results/save_weights`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
         continue;
       }
       if (schemaType === "scalar_map") {
@@ -221,7 +222,7 @@ async function buildReportPayloadWithDefaults() {
         const weightsByLabel = {}; const justificationsByLabel = {};
         for (const row of rows) { weightsByLabel[row.label] = getSavedFeatureWeight(metric, row.label); justificationsByLabel[row.label] = getSavedFeatureJustification(metric, row.label); }
         const payload = buildScalarMapSavePayload({ runId: runId.value, group: groupName, metric, rows, weightsByLabel, justificationsByLabel });
-        await fetch("http://127.0.0.1:8000/results/save_weights", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+        await fetch(`${API_HOST}/results/save_weights`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
         continue;
       }
       const featureKeys = Object.keys(metricObj).filter((k) => k !== "(global)" && metricObj[k] && typeof metricObj[k] === "object");
@@ -232,7 +233,7 @@ async function buildReportPayloadWithDefaults() {
         } else if (schemaType === "group_metric_map") {
           payload = buildGroupMapFeatureSavePayload({ runId: runId.value, metric, schemaType, feature, metricObj, weight: getSavedFeatureWeight(metric, feature), justification: getSavedFeatureJustification(metric, feature), formatLabel: prettify, formatValue: (v) => v });
         } else { continue; }
-        await fetch("http://127.0.0.1:8000/results/save_weights", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+        await fetch(`${API_HOST}/results/save_weights`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
       }
     }
   }

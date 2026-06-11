@@ -1,4 +1,5 @@
 <script setup>
+import { API_HOST } from "../../utils/config";
 import { computed, reactive, ref, watch, nextTick } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import {
@@ -131,7 +132,7 @@ function buildSavePayload() {
 }
 
 async function postSaveMetric() {
-  const resp = await fetch("http://127.0.0.1:8000/results/save_weights", {
+  const resp = await fetch(`${API_HOST}/results/save_weights`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(buildSavePayload()),
@@ -369,4 +370,37 @@ async function onSave() {
 .btn-primary { background: #1A365D; color: #fff; border: 1px solid #1A365D; padding: 0.8rem 1.5rem; border-radius: 4px; font-family: 'Inter', sans-serif; font-weight: 600; cursor: pointer; transition: 0.2s; }
 .btn-primary:hover:not(:disabled) { background: #2563eb; border-color: #2563eb; }
 .btn-primary:disabled { background: #e5e5e5; color: #a0a0a0; border-color: #e5e5e5; cursor: not-allowed; }
+.summary-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 10mm;
+  font-size: 11px;
+}
+
+/* Aggiungi queste definizioni per attivare i colori */
+.red-pill { 
+  background-color: #fee2e2 !important; 
+  border-color: #fecaca !important; 
+}
+.red-pill .p-value { 
+  color: #b91c1c !important; /* Testo rosso scuro */
+}
+
+.green-pill { 
+  background-color: #dcfce7 !important; 
+  border-color: #bbf7d0 !important; 
+}
+.green-pill .p-value { 
+  color: #15803d !important; /* Testo verde scuro */
+}
+.summary-table th, .summary-table td {
+  border: 1px solid #e2e8f0;
+  padding: 8px;
+  text-align: left;
+}
+.summary-table th {
+  background: #f8fafc;
+  font-weight: 700;
+  color: #475569;
+}
 </style>

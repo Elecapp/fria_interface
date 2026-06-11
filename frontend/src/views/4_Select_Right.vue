@@ -1,4 +1,5 @@
 <script setup>
+import { API_HOST } from "../utils/config";
 import { ref, computed, onMounted } from "vue";
 import { useRouter } from "vue-router";
 import ProcessStepper from "../components/ProcessStepper.vue";
@@ -41,7 +42,7 @@ async function fetchRegistry() {
   error.value = "";
   loading.value = true;
   try {
-    const res = await fetch("http://127.0.0.1:8000/plugin-registry");
+    const res = await fetch(`${API_HOST}/plugin-registry`);
     if (!res.ok) throw new Error(`HTTP ${res.status}`);
     const data = await res.json();
 
@@ -86,7 +87,7 @@ async function goNext() {
   };
 
   try {
-    const res = await fetch("http://127.0.0.1:8000/rights/configs", {
+    const res = await fetch(`${API_HOST}/rights/configs`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(cfg),

@@ -1,4 +1,5 @@
 <script setup>
+import { API_HOST } from "../utils/config";
 import { computed, onMounted, reactive, ref } from "vue";
 import { useRouter } from "vue-router";
 import ProcessStepper from "../components/ProcessStepper.vue";
@@ -30,7 +31,7 @@ async function fetchColumns() {
     loading.value = true;
     error.value = "";
 
-    const res = await fetch("http://127.0.0.1:8000/headers"); 
+    const res = await fetch(`${API_HOST}/headers`); 
     if (!res.ok) throw new Error(await res.text());
 
     const data = await res.json();
@@ -73,7 +74,7 @@ async function goNext() {
       error.value = "Select at least one sensitive feature to continue.";
       return;
     }
-    const res = await fetch("http://127.0.0.1:8000/configs/sensitive_features", {
+    const res = await fetch(`${API_HOST}/configs/sensitive_features`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ features }),

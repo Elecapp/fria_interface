@@ -1,4 +1,5 @@
 <script setup>
+import { API_HOST } from "../../utils/config";
 import { computed } from "vue";
 
 const props = defineProps({
@@ -68,14 +69,15 @@ const contextRows = computed(() => {
     }));
 });
 
+// ETICHETTE DEL GAUGE (Invertite per riflettere che 0=Critico, 10=Ottimale)
 const totalScoreLabel = computed(() => {
   const v = Number(likelihoodScore.value);
   if (isNaN(v)) return "Unknown";
-  if (v <= 2) return "Critical";
-  if (v <= 4) return "Low-Medium";
+  if (v <= 2) return "Optimal";
+  if (v <= 4) return "Good";
   if (v <= 6) return "Moderate";
-  if (v <= 8) return "Good";
-  return "Optimal";
+  if (v <= 8) return "Problematic";
+  return "Critical";
 });
 
 const needleRotation = computed(() => {
@@ -259,11 +261,15 @@ const gaugeTicks = computed(() => {
 .gauge-arc { position: absolute; inset: 0; overflow: hidden; }
 .gauge-arc::after { content: ""; position: absolute; left: 0; right: 0; bottom: -2mm; height: 12mm; background: #fff; z-index: 6; }
 .segment { position: absolute; left: 50%; top: 70%; width: 60mm; height: 60mm; border-radius: 50%; border: 7mm solid transparent; transform-origin: center center; }
-.seg-1 { transform: translate(-50%, -50%) rotate(-103deg); border-top-color: #ef4444; z-index: 5; }
-.seg-2 { transform: translate(-50%, -50%) rotate(-65deg); border-top-color: #f97316; z-index: 4; }
-.seg-3 { transform: translate(-50%, -50%) rotate(-22deg); border-top-color: #facc15; z-index: 3; }
-.seg-4 { transform: translate(-50%, -50%) rotate(14deg); border-top-color: #38bdf8; z-index: 2; }
-.seg-5 { transform: translate(-50%, -50%) rotate(54deg); border-top-color: #1d4ed8; z-index: 1; }
+/* Segments invertiti: 
+   .seg-1 (posizione 0-2, sinistra) = ROSSO
+   .seg-5 (posizione 8-10, destra) = BLU */
+   
+   .seg-1 { transform: translate(-50%, -50%) rotate(-103deg); border-top-color: #1d4ed8; z-index: 5; } /* Blu - 0.0-2.0 (Optimal) */
+.seg-2 { transform: translate(-50%, -50%) rotate(-65deg); border-top-color: #38bdf8; z-index: 4; }  /* Lightblue - 2.0-4.0 (Good) */
+.seg-3 { transform: translate(-50%, -50%) rotate(-22deg); border-top-color: #facc15; z-index: 3; }  /* Yellow - 4.0-6.0 (Moderate) */
+.seg-4 { transform: translate(-50%, -50%) rotate(14deg); border-top-color: #f97316; z-index: 2; }   /* Orange - 6.0-8.0 (Problematic) */
+.seg-5 { transform: translate(-50%, -50%) rotate(54deg); border-top-color: #ef4444; z-index: 1; }   /* Red - 8.0-10.0 (Critical) */
 .needle { position: absolute; left: 50%; bottom: 12.5mm; width: 1.5mm; height: 26mm; background: #1e293b; border-radius: 99px; z-index: 10; transform-origin: bottom center; }
 .needle-center { position: absolute; left: 50%; bottom: 10mm; width: 5mm; height: 5mm; background: #1e293b; border-radius: 50%; transform: translateX(-50%); z-index: 11; }
 .gauge-readout { position: absolute; left: 50%; bottom: 0mm; transform: translateX(-50%); text-align: center; z-index: 12; width: 100%; }

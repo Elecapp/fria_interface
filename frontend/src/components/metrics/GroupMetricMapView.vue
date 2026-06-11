@@ -1,4 +1,5 @@
 <script setup>
+import { API_HOST } from "../../utils/config";
 import { computed, onMounted, ref } from "vue";
 import { useRoute } from "vue-router";
 import {
@@ -63,7 +64,7 @@ async function saveFeature(feature) {
       runId: props.runId, group: group.value, metric: metricKey.value, schemaType: schemaTypeReport.value, 
       feature, metricObj: metricObj.value, weight, justification, formatLabel: prettifyLabel, formatValue: formatAny,
     });
-    const resp = await fetch("http://127.0.0.1:8000/results/save_weights", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+    const resp = await fetch(`${API_HOST}/results/save_weights`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
     if (!resp.ok) throw new Error("Failed to save feature");
     savedFeatures.value[feature] = true; saveOk.value = true;
   } catch (e) { saveError.value = e?.message || String(e); } finally { saving.value = false; }
@@ -80,7 +81,7 @@ async function saveMissingFeaturesWithDefaultWeight() {
         runId: props.runId, group: group.value, metric: metricKey.value, schemaType: schemaTypeReport.value, 
         feature, metricObj: metricObj.value, weight: DEFAULT_WEIGHT, justification: DEFAULT_WEIGHT_JUSTIFICATION, formatLabel: prettifyLabel, formatValue: formatAny,
       });
-      await fetch("http://127.0.0.1:8000/results/save_weights", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
+      await fetch(`${API_HOST}/results/save_weights`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
       featureWeights.value[feature] = DEFAULT_WEIGHT; featureJustifications.value[feature] = DEFAULT_WEIGHT_JUSTIFICATION; savedFeatures.value[feature] = true;
     }
   } catch (e) { console.error(e); } finally { saving.value = false; }
@@ -103,7 +104,7 @@ const schemaTypeReport = computed(() => resultSchemas.value?.[metricKey.value]?.
 
 async function loadResultSchemas() {
   try {
-    const resp = await fetch(`http://127.0.0.1:8000/results/result_schemas?run_id=${encodeURIComponent(props.runId)}`);
+    const resp = await fetch(`${API_HOST}/results/result_schemas?run_id=${encodeURIComponent(props.runId)}`);
     if (resp.ok) resultSchemas.value = await resp.json();
   } catch (e) {}
 }
@@ -192,7 +193,7 @@ onMounted(async () => {
     loading.value = true;
     error.value = "";
     
-    const res = await fetch("http://127.0.0.1:8000/results/values_to_display");
+    const res = await fetch(`${API_HOST}/results/values_to_display`);
     if (!res.ok) throw new Error(await res.text());
     const data = await res.json();
 

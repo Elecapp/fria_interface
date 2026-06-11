@@ -1,6 +1,7 @@
 <script setup>
 import { computed, onMounted, ref } from "vue";
 import { useRoute } from "vue-router";
+import { API_HOST } from "../../utils/config";
 
 const route = useRoute();
 
@@ -88,7 +89,7 @@ async function saveFeature(feature) {
     const contextRows = buildContextSummaryRows(feature);
     const summaryRowsLocal = buildSummaryRows(feature);
 
-    const resp = await fetch("http://127.0.0.1:8000/results/save_weights", {
+    const resp = await fetch(`${API_HOST}/results/save_weights`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -126,7 +127,7 @@ async function saveMissingFeaturesWithDefaultWeight() {
       const contextRows = buildContextSummaryRows(feature);
       const summaryRowsLocal = buildSummaryRows(feature);
 
-      await fetch("http://127.0.0.1:8000/results/save_weights", {
+      await fetch(`${API_HOST}/results/save_weights`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -176,7 +177,7 @@ const schemaTypeReport = computed(() => resultSchemas.value?.[metricKey.value]?.
 
 async function loadResultSchemas() {
   try {
-    const resp = await fetch(`http://127.0.0.1:8000/results/result_schemas?run_id=${encodeURIComponent(props.runId)}`);
+    const resp = await fetch(`${API_HOST}/results/result_schemas?run_id=${encodeURIComponent(props.runId)}`);
     if (resp.ok) resultSchemas.value = await resp.json();
   } catch (e) { console.error(e); }
 }
@@ -319,7 +320,7 @@ onMounted(async () => {
     loading.value = true;
     error.value = "";
     
-    const res = await fetch("http://127.0.0.1:8000/results/values_to_display");
+    const res = await fetch(`${API_HOST}/results/values_to_display`);
     if (!res.ok) throw new Error(await res.text());
     const data = await res.json();
 

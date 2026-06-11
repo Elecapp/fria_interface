@@ -1,4 +1,5 @@
 <script setup>
+import { API_HOST } from "../utils/config";
 import { ref, computed, onMounted } from "vue";
 import { useRouter } from "vue-router";
 import ProcessStepper from "../components/ProcessStepper.vue";
@@ -80,7 +81,7 @@ async function buildUI() {
   try {
     loading.value = true;
     error.value = "";
-    const res = await fetch("http://localhost:8000/configs/latest");
+    const res = await fetch(`${API_HOST}/configs/latest`);
 
     if (res.status === 404) {
       error.value = "Configuration not found. Please restart the process.";
@@ -91,7 +92,7 @@ async function buildUI() {
     metricsByRight.value = cfg.value.metrics_by_right || {};
     metricRequirements.value = cfg.value.metric_requirements || {};
 
-    const reg = await fetch("http://127.0.0.1:8000/plugin-registry");
+    const reg = await fetch(`${API_HOST}/plugin-registry`);
     if (reg.ok) pluginRegistry.value = await reg.json();
   } catch (e) {
     error.value = e.message;
@@ -126,7 +127,8 @@ async function goNext() {
   }
 
   try {
-    const res = await fetch("http://localhost:8000/configs/metrics_to_compute", {
+  
+    const res = await fetch(`${API_HOST}/configs/metrics_to_compute`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ metrics: metricsPayload, plugins }),

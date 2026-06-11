@@ -1,4 +1,5 @@
 <script setup>
+import { API_HOST } from "../utils/config";
 import { ref, onMounted } from "vue";
 import { useRouter } from "vue-router";
 import ProcessStepper from "../components/ProcessStepper.vue";
@@ -96,7 +97,7 @@ onMounted(async () => {
   error.value = "";
 
   try {
-    const resHeaders = await fetch("http://127.0.0.1:8000/headers");
+    const resHeaders = await fetch(`${API_HOST}/headers`);
     if (!resHeaders.ok) throw new Error("Failed to fetch headers");
     const dataHeaders = await resHeaders.json();
     
@@ -105,7 +106,7 @@ onMounted(async () => {
     
     oheGroups.value = detectOHEGroups(allColumnsData.value);
 
-    const resDistrib = await fetch("http://127.0.0.1:8000/n-distrib");
+    const resDistrib = await fetch(`${API_HOST}/n-distrib`);
     if (resDistrib.ok) {
       const dataDistrib = await resDistrib.json();
       const settings = {};
@@ -160,7 +161,7 @@ async function goNext() {
 
   try {
     // 3A. Salva Target Columns nel config generico
-    await fetch("http://127.0.0.1:8000/config", {
+    await fetch(`${API_HOST}/config`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -169,7 +170,7 @@ async function goNext() {
       })
     });
     // tagliare i file in base alle colonne target selezionate, per ottimizzare i passaggi successivi
-    await fetch("http://127.0.0.1:8000/slice-target-files", {
+    await fetch(`${API_HOST}/slice-target-files`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -179,7 +180,7 @@ async function goNext() {
     });
 
     // 3B. Salva OHE
-    await fetch("http://127.0.0.1:8000/config/inverse-encoding-prefixes", {
+    await fetch(`${API_HOST}/config/inverse-encoding-prefixes`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
@@ -200,7 +201,7 @@ async function goNext() {
         }
       }
 
-      await fetch("http://127.0.0.1:8000/config/binning", {
+      await fetch(`${API_HOST}/config/binning`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

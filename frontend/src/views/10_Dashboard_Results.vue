@@ -1,4 +1,5 @@
 <script setup>
+import { API_HOST } from "../utils/config";
 import { computed, onMounted, ref, shallowRef } from "vue";
 import { useRoute, useRouter } from "vue-router";
 
@@ -73,8 +74,8 @@ async function handleBack() {
             }
         }
     }
-
-    await fetch("http://127.0.0.1:8000/results/save_weights", {
+    const APIHOST = `${API_HOST}/api`;
+    await fetch( APIHOST+"/results/save_weights", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
@@ -219,7 +220,7 @@ onMounted(async () => {
     if (route.query.runId) runId.value = String(route.query.runId);
 
     const t = new Date().getTime();
-    const res = await fetch(`http://127.0.0.1:8000/results/values_to_display?run_id=${runId.value}&t=${t}`);
+    const res = await fetch(`${API_HOST}/results/values_to_display?run_id=${runId.value}&t=${t}`);
     if (!res.ok) throw new Error(await res.text());
     const data = await res.json();
 
@@ -231,7 +232,7 @@ onMounted(async () => {
     if (data?.schemas) {
       allSchemas.value = data.schemas;
     } else {
-      const sres = await fetch(`http://127.0.0.1:8000/results/result_schemas?run_id=${runId.value}&t=${t}`);
+      const sres = await fetch(`${API_HOST}/results/result_schemas?run_id=${runId.value}&t=${t}`);
       if (sres.ok) allSchemas.value = await sres.json();
       else allSchemas.value = {};
     }

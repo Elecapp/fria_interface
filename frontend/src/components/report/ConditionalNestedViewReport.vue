@@ -1,4 +1,5 @@
 <script setup>
+import { API_HOST } from "../../utils/config";
 import { computed } from "vue";
 
 const props = defineProps({
@@ -76,14 +77,15 @@ const summaryRows = computed(() => {
     }));
 });
 
+// ETICHETTE DEL GAUGE (Invertite per riflettere che 0=Critico, 10=Ottimale)
 const totalScoreLabel = computed(() => {
   const v = Number(likelihoodScore.value);
   if (isNaN(v)) return "Unknown";
-  if (v <= 2) return "Critical";
-  if (v <= 4) return "Low-Medium";
+  if (v <= 2) return "Optimal";
+  if (v <= 4) return "Good";
   if (v <= 6) return "Moderate";
-  if (v <= 8) return "Good";
-  return "Optimal";
+  if (v <= 8) return "Problematic";
+  return "Critical";
 });
 
 const needleRotation = computed(() => {
@@ -183,7 +185,7 @@ const gaugeTicks = computed(() => {
              </div>
 
              <div class="score-pill">
-               <span class="p-label">Gravity (0-4)</span>
+               <span class="p-label">Gravity (0-5)</span>
                <span class="p-value">{{ gravity }}</span>
              </div>
              
@@ -227,7 +229,7 @@ const gaugeTicks = computed(() => {
 .page-header {
   display: flex; justify-content: space-between; align-items: center;
   border-bottom: 1px solid #e2e8f0; padding-bottom: 8px; margin-bottom: 10mm;
-  font-size: 10px; font-weight: 600; color: #64748b; letter-spacing: 0.5px;
+  font-size: 9px; font-weight: 600; color: #64748b; letter-spacing: 0.5px;
 }
 .sep { margin: 0 8px; color: #cbd5e1; }
 .brand { color: #1A365D; font-weight: 800; }
@@ -236,7 +238,7 @@ const gaugeTicks = computed(() => {
 .title-section { margin-bottom: 10mm; }
 .domain-tag { font-size: 10px; font-weight: 800; text-transform: uppercase; color: #1A365D; letter-spacing: 1px; margin-bottom: 4px; }
 .page-title { font-family: 'Instrument Serif', serif; font-size: 42px; line-height: 1.1; margin: 0; font-weight: 400; color: #1e293b; }
-.feature-tag { margin-top: 8px; font-size: 14px; color: #475569; padding: 6px 12px; background: #f8fafc; display: inline-block; border-radius: 4px; border: 1px solid #e2e8f0; }
+.feature-tag { margin-top: 8px; font-size: 12px; color: #475569; padding: 6px 12px; background: #f8fafc; display: inline-block; border-radius: 4px; border: 1px solid #e2e8f0; }
 
 /* Grid Layout */
 .main-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12mm; align-items: start; }
@@ -246,10 +248,10 @@ const gaugeTicks = computed(() => {
 
 /* Info Sections */
 .info-section { margin-bottom: 8mm; }
-.description-text { font-size: 13px; line-height: 1.6; color: #334155; font-style: italic; }
+.description-text { font-size: 10px; line-height: 1.6; color: #334155; font-style: italic; }
 
 .summary-list { display: flex; flex-direction: column; gap: 8px; }
-.summary-item { display: flex; justify-content: space-between; font-size: 12px; padding-bottom: 6px; border-bottom: 1px solid #f8fafc; }
+.summary-item { display: flex; justify-content: space-between; font-size: 10px; padding-bottom: 6px; border-bottom: 1px solid #f8fafc; }
 .s-label { color: #64748b; font-weight: 500; }
 .s-value { font-weight: 700; color: #1e293b; }
 .mono { font-family: 'JetBrains Mono', monospace; }
@@ -262,13 +264,13 @@ const gaugeTicks = computed(() => {
 .score-pill.green-pill { background: #f0fdf4; border-color: #bbf7d0; }
 .score-pill.green-pill .p-value { color: #16a34a; }
 
-.p-label { font-size: 9px; font-weight: 800; text-transform: uppercase; color: #64748b; }
+.p-label { font-size: 10px; font-weight: 800; text-transform: uppercase; color: #64748b; }
 .p-value { font-size: 18px; font-weight: 800; color: #1e293b; margin-top: 4px;}
 .score-pill.blue .p-value { color: #1d4ed8; }
 
 /* Justification */
 .justification-box { background: #fdfdfd; border-left: 3px solid #1A365D; padding: 15px; margin-top: 5mm; }
-.justification-text { font-size: 12px; line-height: 1.5; color: #475569; margin: 0; }
+.justification-text { font-size: 10px; line-height: 1.5; color: #475569; margin: 0; }
 
 /* Gauge Styles */
 .gauge-box { background: #fff; border: 1px solid #f1f5f9; border-radius: 12px; padding: 20px 10px; }
@@ -277,11 +279,15 @@ const gaugeTicks = computed(() => {
 .gauge-arc { position: absolute; inset: 0; overflow: hidden; }
 .gauge-arc::after { content: ""; position: absolute; left: 0; right: 0; bottom: -2mm; height: 12mm; background: #fff; z-index: 6; }
 .segment { position: absolute; left: 50%; top: 70%; width: 60mm; height: 60mm; border-radius: 50%; border: 7mm solid transparent; transform-origin: center center; }
-.seg-1 { transform: translate(-50%, -50%) rotate(-103deg); border-top-color: #ef4444; z-index: 5; }
-.seg-2 { transform: translate(-50%, -50%) rotate(-65deg); border-top-color: #f97316; z-index: 4; }
-.seg-3 { transform: translate(-50%, -50%) rotate(-22deg); border-top-color: #facc15; z-index: 3; }
-.seg-4 { transform: translate(-50%, -50%) rotate(14deg); border-top-color: #38bdf8; z-index: 2; }
-.seg-5 { transform: translate(-50%, -50%) rotate(54deg); border-top-color: #1d4ed8; z-index: 1; }
+/* Segments invertiti: 
+   .seg-1 (posizione 0-2, sinistra) = ROSSO
+   .seg-5 (posizione 8-10, destra) = BLU */
+   
+.seg-1 { transform: translate(-50%, -50%) rotate(-103deg); border-top-color: #1d4ed8; z-index: 5; } /* Blu - 0.0-2.0 (Optimal) */
+.seg-2 { transform: translate(-50%, -50%) rotate(-65deg); border-top-color: #38bdf8; z-index: 4; }  /* Lightblue - 2.0-4.0 (Good) */
+.seg-3 { transform: translate(-50%, -50%) rotate(-22deg); border-top-color: #facc15; z-index: 3; }  /* Yellow - 4.0-6.0 (Moderate) */
+.seg-4 { transform: translate(-50%, -50%) rotate(14deg); border-top-color: #f97316; z-index: 2; }   /* Orange - 6.0-8.0 (Problematic) */
+.seg-5 { transform: translate(-50%, -50%) rotate(54deg); border-top-color: #ef4444; z-index: 1; }   /* Red - 8.0-10.0 (Critical) */  /* Optimal */
 .needle { position: absolute; left: 50%; bottom: 12.5mm; width: 1.5mm; height: 26mm; background: #1e293b; border-radius: 99px; z-index: 10; transform-origin: bottom center; }
 .needle-center { position: absolute; left: 50%; bottom: 10mm; width: 5mm; height: 5mm; background: #1e293b; border-radius: 50%; transform: translateX(-50%); z-index: 11; }
 .gauge-readout { position: absolute; left: 50%; bottom: 0mm; transform: translateX(-50%); text-align: center; z-index: 12; width: 100%; }
@@ -290,6 +296,21 @@ const gaugeTicks = computed(() => {
 .tick { position: absolute; font-size: 9px; font-weight: 800; color: #94a3b8; z-index: 7; }
 
 .page-number { position: absolute; bottom: 10mm; right: 20mm; font-size: 10px; font-family: monospace; color: #94a3b8; }
+/* Aggiungi queste definizioni per attivare i colori */
+.red-pill { 
+  background-color: #fee2e2 !important; 
+  border-color: #fecaca !important; 
+}
+.red-pill .p-value { 
+  color: #b91c1c !important; /* Testo rosso scuro */
+}
 
+.green-pill { 
+  background-color: #dcfce7 !important; 
+  border-color: #bbf7d0 !important; 
+}
+.green-pill .p-value { 
+  color: #15803d !important; /* Testo verde scuro */
+}
 @media print { .report-page-content { -webkit-print-color-adjust: exact; print-color-adjust: exact; } }
 </style>

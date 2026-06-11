@@ -1,4 +1,5 @@
 <script setup>
+import { API_HOST } from "../../utils/config";
 import { computed, reactive, ref, watch, nextTick, onMounted } from "vue";
 import { useRoute, useRouter } from "vue-router";
 import {
@@ -139,7 +140,7 @@ function buildSavePayload() {
 }
 
 async function postSaveMetric() {
-  const resp = await fetch("http://127.0.0.1:8000/results/save_weights", {
+  const resp = await fetch(`${API_HOST}/results/save_weights`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(buildSavePayload()),

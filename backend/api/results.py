@@ -79,8 +79,9 @@ def values_to_display(run_id: Optional[str] = Query(None)):
         ACTIVE_RUN_ID = current_id
 
     dataset_names_map = {
-        "Hiring_good": "Algoritmo HR (Scenario Ottimale)",
-        "Hiring_bad": "Algoritmo HR (Scenario Critico)"
+        "Bank_case1": "Algoritmo credit score 1",
+        "Bank_case2": "Algoritmo credit score 2",
+        "Bank_case3": "Algoritmo credit score 3",
     }
     fallback_name = current_id.replace("_", " ").title()
     dataset_name = dataset_names_map.get(current_id, f"Dataset: {fallback_name}")
@@ -245,6 +246,204 @@ def save_domain_config(payload: DomainConfigPayload):
     report_path.write_text(json.dumps(report_raw, ensure_ascii=False, indent=2), encoding="utf-8")
     return {"status": "success"}
 
+
+
+@router.get("/results/{run_id}_report")
+def get_report_json(run_id: str):
+    report_path = RESULTS_DIR / f"{run_id}_report.json"
+    if not report_path.exists(): 
+        raise HTTPException(status_code=404, detail="Report non trovato")
+
+    report_data = json.loads(report_path.read_text(encoding="utf-8"))
+    results = report_data.get("results", report_data)
+
+    privacy_list = ["anonymity_set_size", "k_anonymity", "l_diversity", "mutual_information_metric", "t_closeness"]
+    fairness_list = ["conditional_statistical_parity", "conditional_use_accuracy_equality", "demographic_parity", "disparate_impact", "equal_opportunity", "equalized_odds_difference", "overall_accuracy_equality", "predictive_parity"]
+
+    # Funzione helper che calcola il punteggio al volo
+    def fix_node(node, metric_name):
+        if not isinstance(node, dict): return
+        
+        # 1. Assegna Dominio
+        if not node.get("metric_right_report"):
+            node["metric_right_report"] = "Privacy" if metric_name in privacy_list else "Non Discrimination" if metric_name in fairness_list else "Other"
+
+        # 2. Normalizzazione Reversibilità (True/False)
+        rev_val = node.get("reversibility_report")
+        is_rev = False
+        if isinstance(rev_val, bool): is_rev = rev_val
+        elif isinstance(rev_val, str): is_rev = rev_val.lower() == "yes"
+        node["reversibility"] = is_rev
+        node["reversibility_report"] = is_rev
+
+        # 3. IL CALCOLO CHE MANCAVA
+        likelihood = node.get("final_score")
+        if likelihood is None and "context_report" in node:
+            likelihood = node["context_report"].get("final_score")
+        
+        gravity = node.get("gravity_report", 0)
+        
+        # Calcoliamo il rischio qui, sovrascrivendo quello vecchio a 0
+        if likelihood is not None:
+            node["total_score_report"] = calculate_fria_risk(likelihood, gravity, is_rev)
+
+    if isinstance(results, dict):
+        for metric_key, metric_data in results.items():
+            if not isinstance(metric_data, dict): continue
+            
+            # Controlla se è nidificato (es. ha sottocategorie come gender/age)
+            is_nested = False
+            for sub_key, sub_val in metric_data.items():
+                if isinstance(sub_val, dict) and ("metric" in sub_val or "status" in sub_val):
+                    fix_node(sub_val, metric_key)
+                    is_nested = True
+            
+            if not is_nested:
+                fix_node(metric_data, metric_key)
+            else:
+                fix_node(metric_data, metric_key) # fix anche al padre per coerenza
+
+    return clean_nans(report_data)
+
+'''
+@router.get("/results/{run_id}_report")
+def get_report_json(run_id: str):
+    report_path = RESULTS_DIR / f"{run_id}_report.json"
+    if not report_path.exists(): 
+        raise HTTPException(status_code=404, detail="Report non trovato")
+
+    report_data = json.loads(report_path.read_text(encoding="utf-8"))
+    results = report_data.get("results", report_data)
+
+    privacy_list = ["anonymity_set_size", "k_anonymity", "l_diversity", "mutual_information_metric", "t_closeness"]
+    fairness_list = ["conditional_statistical_parity", "conditional_use_accuracy_equality", "demographic_parity", "disparate_impact", "equal_opportunity", "equalized_odds_difference", "overall_accuracy_equality", "predictive_parity"]
+
+    # Funzione helper per sistemare un "nodo" (principale o nidificato)
+    def fix_node(node, metric_name):
+        if not isinstance(node, dict): return
+        
+        # 1. Assegna il Dominio Corretto
+        if not node.get("metric_right_report"):
+            node["metric_right_report"] = "Privacy" if metric_name in privacy_list else "Non Discrimination" if metric_name in fairness_list else "Other"
+
+        # 2. Descrizione di Default
+        if not node.get("metric_description_report"):
+            node["metric_description_report"] = "Detailed analysis of the metric results for the specific feature identified."
+
+        # 3. Correzione testo giustificazione di default
+        old_text = "Since no weight has been assigned, the default weight 5 has been used"
+        new_text = "Since no weight has been assigned, the gravity is set to low"
+        if node.get("justification_report") == old_text:
+            node["justification_report"] = new_text
+        if node.get("user_justification_report") == old_text:
+            node["user_justification_report"] = new_text
+
+        # 4. Normalizzazione Reversibilità
+        rev_val = node.get("reversibility_report")
+        is_rev = False
+        if isinstance(rev_val, bool): is_rev = rev_val
+        elif isinstance(rev_val, str): is_rev = rev_val.lower() == "yes"
+        node["reversibility"] = is_rev
+        node["reversibility_report"] = is_rev
+
+        # 5. FIX RIGUARDANTE DISPARATE IMPACT (Calcolo dinamico se manca total_score_report)
+        if not node.get("total_score_report") or node.get("total_score_report") == "-":
+            # Recuperiamo la Likelihood (final_score)
+            likelihood = node.get("final_score")
+            if likelihood is None and "context_report" in node:
+                likelihood = node["context_report"].get("final_score")
+            
+            # Recuperiamo la Gravity
+            gravity_val = node.get("gravity_report") if node.get("gravity_report") is not None else node.get("gravity")
+            
+            if likelihood is not None and gravity_val is not None:
+                # Calcola il rischio totale sfruttando la funzione già presente nel file
+                node["total_score_report"] = calculate_fria_risk(likelihood, gravity_val, is_rev)
+
+    if isinstance(results, dict):
+        for metric_key, metric_data in results.items():
+            if not isinstance(metric_data, dict): continue
+            
+            # Scansione dei sotto-nodi (es. gender, age_range)
+            is_nested = False
+            for sub_key, sub_val in metric_data.items():
+                if isinstance(sub_val, dict) and ("metric" in sub_val or "status" in sub_val):
+                    fix_node(sub_val, metric_key)
+                    is_nested = True
+            
+            # Se la metrica è a livello globale (es. k-anonymity)
+            if not is_nested:
+                fix_node(metric_data, metric_key)
+            else:
+                fix_node(metric_data, metric_key)
+
+    return clean_nans(report_data)
+'''
+'''
+@router.get("/results/{run_id}_report")
+def get_report_json(run_id: str):
+    report_path = RESULTS_DIR / f"{run_id}_report.json"
+    if not report_path.exists(): 
+        raise HTTPException(status_code=404, detail="Report non trovato")
+
+    report_data = json.loads(report_path.read_text(encoding="utf-8"))
+    results = report_data.get("results", report_data)
+
+    privacy_list = ["anonymity_set_size", "k_anonymity", "l_diversity", "mutual_information_metric", "t_closeness"]
+    fairness_list = ["conditional_statistical_parity", "conditional_use_accuracy_equality", "demographic_parity", "disparate_impact", "equal_opportunity", "equalized_odds_difference", "overall_accuracy_equality", "predictive_parity"]
+
+    # Funzione helper per sistemare un "nodo" (sia principale che nidificato)
+    def fix_node(node, metric_name):
+        if not isinstance(node, dict): return
+        
+        # 1. Assegna il Dominio Corretto
+        if not node.get("metric_right_report"):
+            node["metric_right_report"] = "Privacy" if metric_name in privacy_list else "Non Discrimination" if metric_name in fairness_list else "Other"
+
+        # 2. Descrizione di Default (se manca)
+        if not node.get("metric_description_report"):
+            node["metric_description_report"] = "Detailed analysis of the metric results for the specific feature identified."
+
+        # 3. CORREZIONE TESTO GIUSTIFICAZIONE
+        old_text = "Since no weight has been assigned, the default weight 5 has been used"
+        new_text = "Since no weight has been assigned, the gravity is set to low"
+        
+        if node.get("justification_report") == old_text:
+            node["justification_report"] = new_text
+        if node.get("user_justification_report") == old_text:
+            node["user_justification_report"] = new_text
+
+        # 4. Normalizzazione Reversibilità
+        rev_val = node.get("reversibility_report")
+        is_rev = False
+        if isinstance(rev_val, bool): is_rev = rev_val
+        elif isinstance(rev_val, str): is_rev = rev_val.lower() == "yes"
+        node["reversibility"] = is_rev
+        node["reversibility_report"] = is_rev
+
+    if isinstance(results, dict):
+        for metric_key, metric_data in results.items():
+            if not isinstance(metric_data, dict): continue
+            
+            # Controlliamo se è una metrica nidificata (ha sotto-chiavi come "gender" o "age_range")
+            # Un modo semplice è vedere se le sotto-chiavi contengono dizionari con il campo "metric" o "status"
+            is_nested = False
+            for sub_key, sub_val in metric_data.items():
+                if isinstance(sub_val, dict) and ("metric" in sub_val or "status" in sub_val):
+                    fix_node(sub_val, metric_key)
+                    is_nested = True
+            
+            # Se non era nidificata (es. Anonymity Set Size), applichiamo la correzione al primo livello
+            if not is_nested:
+                fix_node(metric_data, metric_key)
+            else:
+                # Per sicurezza, diamo il dominio anche al nodo padre
+                fix_node(metric_data, metric_key)
+
+    return clean_nans(report_data)
+'''
+
+''''
 @router.get("/results/{run_id}_report")
 def get_report_json(run_id: str):
     report_path = RESULTS_DIR / f"{run_id}_report.json"
@@ -255,39 +454,32 @@ def get_report_json(run_id: str):
     domain_configs = report_data.get("domain_configs", {})
     results = report_data.get("results", report_data)
 
-    # Elenchi per la mappatura automatica dei domini (universale)
     privacy_list = ["anonymity_set_size", "k_anonymity", "l_diversity", "mutual_information_metric", "t_closeness"]
     fairness_list = ["conditional_statistical_parity", "conditional_use_accuracy_equality", "demographic_parity", "disparate_impact", "equal_opportunity", "equalized_odds_difference", "overall_accuracy_equality", "predictive_parity"]
 
-    # FORZATURA STRUTTURALE DELLA REVERSIBILITA' PER IL RENDERIZZATORE PDF
     if isinstance(results, dict):
         for metric_key, metric_data in results.items():
-            if not isinstance(metric_data, dict): 
-                continue
-                
-            # Capiamo a quale dominio appartiene la metrica attuale
-            group = "privacy" if metric_key in privacy_list else "non_discrimination" if metric_key in fairness_list else "other"
+            if not isinstance(metric_data, dict): continue
             
-            if group in domain_configs:
-                # Leggiamo il booleano salvato (True/False)
-                is_rev = domain_configs[group].get("reversibility", False)
-                
-                # Iniettiamo la proprietà ovunque il motore del PDF possa cercarla
-                metric_data["reversibility_report"] = is_rev
-                metric_data["reversibility"] = is_rev
-                
-                if "(global)" in metric_data and isinstance(metric_data["(global)"], dict):
-                    metric_data["(global)"]["reversibility_report"] = is_rev
-                    metric_data["(global)"]["reversibility"] = is_rev
-                
-                # Scendiamo anche nei sottogruppi (es. le feature di fairness per Genere o Età)
-                for sub_k, sub_v in metric_data.items():
-                    if isinstance(sub_v, dict):
-                        sub_v["reversibility_report"] = is_rev
-                        sub_v["reversibility"] = is_rev
+            # Dominio
+            if not metric_data.get("metric_right_report"):
+                metric_data["metric_right_report"] = "Privacy" if metric_key in privacy_list else "Non Discrimination" if metric_key in fairness_list else "Other"
+
+            # Descrizione
+            if not metric_data.get("metric_description_report"):
+                metric_data["metric_description_report"] = "Detailed analysis of the metric results for the specific feature identified."
+
+            # Reversibilità: Normalizzazione Forzata (Yes/No -> True/False)
+            rev_val = metric_data.get("reversibility_report")
+            is_rev = False
+            if isinstance(rev_val, bool): is_rev = rev_val
+            elif isinstance(rev_val, str): is_rev = rev_val.lower() == "yes"
+            
+            metric_data["reversibility"] = is_rev
+            metric_data["reversibility_report"] = is_rev
 
     return clean_nans(report_data)
-
+'''
 class GeneratePDFRequest(BaseModel):
     run_id: str
 

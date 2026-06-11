@@ -1,4 +1,5 @@
 <script setup>
+import { API_HOST } from "../../utils/config";
 const props = defineProps({
   meta: { type: Object, required: true },
   pageNumber: { type: [String, Number], default: 2 },
@@ -28,22 +29,22 @@ const props = defineProps({
       <div class="legend-row">
         <div class="color-indicator"><div class="dot red"></div></div>
         <div class="score-info">
-          <div class="score-name">Low Score</div>
-          <div class="score-range">0.0 – 2.0</div>
+          <div class="score-name">High Score</div>
+          <div class="score-range">8.01 – 10.0</div>
         </div>
         <div class="description">
-          <strong>Critical:</strong> Strong evidence of violations or significant risks to fundamental rights. Immediate mitigation measures and model redesign are required.
+          <strong>Critical:</strong> Strong evidence of violations or significant risks. Immediate redesign required.
         </div>
       </div>
 
       <div class="legend-row">
         <div class="color-indicator"><div class="dot orange"></div></div>
         <div class="score-info">
-          <div class="score-name">Low-Medium</div>
-          <div class="score-range">2.01 – 4.0</div>
+          <div class="score-name">Medium-High</div>
+          <div class="score-range">6.01 – 8.0</div>
         </div>
         <div class="description">
-          <strong>Problematic:</strong> Notable imbalances or vulnerabilities detected. Acceptable only as a preliminary stage; requires a thorough review of the dataset or model parameters.
+          <strong>Problematic:</strong> Notable imbalances detected. Requires thorough review.
         </div>
       </div>
 
@@ -54,33 +55,34 @@ const props = defineProps({
           <div class="score-range">4.01 – 6.0</div>
         </div>
         <div class="description">
-          <strong>Moderate:</strong> Consistent with core principles, but with visible room for optimization. The system is considered compliant but remains under active monitoring.
+          <strong>Moderate:</strong> Consistent, but with visible room for optimization.
         </div>
       </div>
 
       <div class="legend-row">
         <div class="color-indicator"><div class="dot lightblue"></div></div>
         <div class="score-info">
-          <div class="score-name">Medium-High</div>
-          <div class="score-range">6.01 – 8.0</div>
+          <div class="score-name">Low-Medium</div>
+          <div class="score-range">2.01 – 4.0</div>
         </div>
         <div class="description">
-          <strong>Good:</strong> High level of consistency with fundamental rights. Minor optimizations may be suggested to reach the top-tier compliance level.
+          <strong>Good:</strong> High level of consistency. Minor optimizations suggested.
         </div>
       </div>
 
       <div class="legend-row">
         <div class="color-indicator"><div class="dot blue"></div></div>
         <div class="score-info">
-          <div class="score-name">High Score</div>
-          <div class="score-range">8.01 – 10.0</div>
+          <div class="score-name">Low Score</div>
+          <div class="score-range">0.0 – 2.0</div>
         </div>
         <div class="description">
-          <strong>Optimal:</strong> Fully compliant. No evidence of risk emerges from this metric. The system meets the highest requirements for fairness and privacy.
+          <strong>Optimal:</strong> Fully compliant. No evidence of risk emerges from this metric.
         </div>
       </div>
 
     </div>
+
 
     <div class="page-number">{{ pageNumber }}</div>
   </div>

@@ -1,4 +1,5 @@
 <script setup>
+import { API_HOST } from "../utils/config";
 import { ref, computed } from "vue";
 import { useRouter } from "vue-router";
 import ProcessStepper from "../components/ProcessStepper.vue";
@@ -9,16 +10,22 @@ const selectedDataset = ref(null);
 // I due scenari esatti per l'esperimento controllato (Toy Branch)
 const toyScenarios = [
   {
-    id: "Hiring_good", // Deve combaciare ESATTAMENTE col nome del file JSON
-    name: "Scenario Ottimale (Good)",
-    description: "Sistema di screening dei curricula con parametri eccellenti di equità e privacy. Le metriche non rilevano discriminazioni evidenti.",
-    type: "HR / Recruitment - Fair"
+    id: "credit_score_case1_pre", // Deve combaciare ESATTAMENTE col nome del file JSON
+    name: "Bank Case 1",
+    description: "A credit scoring system that has been evaluated and shows good performance across all demographic groups. It does not show significant disparities in approval rates for",
+    type: "Credit Scoring"
   },
   {
-    id: "Hiring_bad", // Deve combaciare ESATTAMENTE col nome del file JSON
-    name: "Scenario Critico (Bad)",
-    description: "Sistema di screening dei curricula che presenta alcune criticità. Mostra disparità nei tassi di assunzione per età e genere.",
-    type: "HR / Recruitment - Biased"
+    id: "credit_score_case2_pre", // Deve combaciare ESATTAMENTE col nome del file JSON
+    name: "Bank Case 2",
+    description: "A credit scoring system that has been evaluated and shows significant disparities in approval rates for different demographic groups. It may indicate potential bias or unfairness in the algorithm's decision-making process.",
+    type: "Credit Scoring"
+  },
+  {
+    id: "credit_score_case2",
+    name: "Bank Case 3",
+    description: " A credit scoring system that needs to be evaluated by domain experts",
+    type: "Credit Scoring"
   }
 ];
 

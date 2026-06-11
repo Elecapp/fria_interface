@@ -1,4 +1,5 @@
 <script setup>
+import { API_HOST } from "../utils/config";
 import { ref } from "vue";
 import { useRouter } from "vue-router";
 import ProcessStepper from "../components/ProcessStepper.vue";
@@ -19,7 +20,7 @@ async function startEvaluation() {
     running.value = true;
     error.value = "";
 
-    const res = await fetch("http://127.0.0.1:8000/run-evaluation", {
+    const res = await fetch(`${API_HOST}/run-evaluation`, {
       method: "POST",
     });
 
