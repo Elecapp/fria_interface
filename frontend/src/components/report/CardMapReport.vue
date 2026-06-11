@@ -78,32 +78,56 @@ const contextRows = computed(() => {
     }));
 });
 
-// ETICHETTE DEL GAUGE (Usa Likelihood, non il total_score!)
+// ETICHETTE DEL GAUGE (Invariato)
 const totalScoreLabel = computed(() => {
-  const v = Number(likelihoodScore.value);
+  const v = Number(total_score.value);
   if (isNaN(v)) return "Unknown";
-  if (v <= 2) return "Optimal";
-  if (v <= 4) return "Good";
-  if (v <= 6) return "Moderate";
-  if (v <= 8) return "Problematic";
+  if (v <= 7.45) return "Optimal";
+  if (v <= 15) return "Good";
+  if (v <= 24.5) return "Moderate";
+  if (v <= 42) return "Problematic";
   return "Critical";
 });
 
-// LANCETTA DEL GAUGE (Usa Likelihood!)
+// Funzione helper per mappare i valori in modo proporzionale sui 5 spicchi
+function getSegmentPosition(value) {
+  if (value <= 0) return 0;
+  // Spicchio 1 (0 - 7.5)
+  if (value <= 7.5) return 0 + (value - 0) / (7.5 - 0);
+  // Spicchio 2 (7.5 - 15)
+  if (value <= 15) return 1 + (value - 7.5) / (15 - 7.5);
+  // Spicchio 3 (15 - 24.5)
+  if (value <= 24.5) return 2 + (value - 15) / (24.5 - 15);
+  // Spicchio 4 (24.5 - 42)
+  if (value <= 42) return 3 + (value - 24.5) / (42 - 24.5);
+  // Spicchio 5 (42 - 75)
+  if (value <= 75) return 4 + (value - 42) / (75 - 42);
+  return 5; // Oltre 75
+}
+
+// LANCETTA DEL GAUGE (Usa i 5 spicchi visivi)
 const needleRotation = computed(() => {
-  const v = Math.max(0, Math.min(10, Number(likelihoodScore.value) || 0));
-  return (v / 10) * 180 - 90;
+  const v = Math.max(0, Math.min(75, Number(total_score.value) || 0));
+  // Ottiene la posizione da 0 a 5, la divide per 5 (i totali spicchi) e calcola l'angolo
+  const segmentPos = getSegmentPosition(v);
+  return (segmentPos / 5) * 180 - 90;
 });
 
+// NUMERINI SUL GAUGE (Posizionati esattamente ai confini degli spicchi visivi)
 const gaugeTicks = computed(() => {
-  const ticks = [0, 2, 4, 6, 8, 10];
+  const ticks = [0, 7.5, 15, 24.5, 42, 75];
   const radius = 22; const centerX = 45; const centerY = 33;
-  return ticks.map((value) => {
-    const angleDeg = -180 + (value / 10) * 180;
+  
+  return ticks.map((value, index) => {
+    // index va da 0 a 5. Diviso 5 ci dà le percentuali esatte: 0%, 20%, 40%, 60%, 80%, 100%
+    const angleDeg = -180 + (index / 5) * 180; 
     const angleRad = (angleDeg * Math.PI) / 180;
     const x = centerX + radius * Math.cos(angleRad);
     const y = centerY + radius * Math.sin(angleRad);
-    return { value, style: { left: `${x}mm`, top: `${y}mm`, transform: "translate(-50%, -50%)" } };
+    return { 
+      value, 
+      style: { left: `${x}mm`, top: `${y}mm`, transform: "translate(-50%, -50%)" } 
+    };
   });
 });
 </script>
@@ -153,7 +177,7 @@ const gaugeTicks = computed(() => {
              </div>
 
              <div class="score-pill">
-               <span class="p-label">Gravity Impact (0-5)</span>
+               <span class="p-label">Gravity Impact (1-5)</span>
                <span class="p-value">{{ gravity }}</span>
              </div>
              
@@ -184,7 +208,7 @@ const gaugeTicks = computed(() => {
                 <div class="needle" :style="{ transform: `translateX(-50%) rotate(${needleRotation}deg)` }"></div>
                 <div class="needle-center"></div>
                 <div class="gauge-readout">
-                  <div class="gauge-number">{{ likelihoodScore }}</div>
+                  <div class="gauge-number">{{ total_score }}</div>
                   <div class="gauge-text">{{ totalScoreLabel }}</div>
                 </div>
                 <span v-for="tick in gaugeTicks" :key="tick.value" class="tick" :style="tick.style">{{ tick.value }}</span>

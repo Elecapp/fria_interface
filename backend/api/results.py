@@ -79,7 +79,8 @@ def values_to_display(run_id: Optional[str] = Query(None)):
         ACTIVE_RUN_ID = current_id
 
     dataset_names_map = {
-        "Bank_case1": "Algoritmo credit score 1",
+        
+       # "Bank_case1": "Algoritmo credit score 1",
         "Bank_case2": "Algoritmo credit score 2",
         "Bank_case3": "Algoritmo credit score 3",
     }

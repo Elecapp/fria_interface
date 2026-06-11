@@ -17,76 +17,46 @@ const props = defineProps({
       <div class="meta-right">{{ meta.evaluation_date }}</div>
     </header>
 
-    <div class="title-section">
-      <h1 class="h1">Interpretation Guide</h1>
-      <h2 class="h2">
-        A reference key to interpreting the quantitative results and the Contextual Impact (Gravity) obtained during the algorithmic evaluation.
-      </h2>
-    </div>
+    <div class="page-inner">
+      <header class="title-block">
+        <div class="section-label">SECTION B - Risk of impact on each fundamental right</div>
+        <h1 class="page-title">Interpretation Guide</h1>
+        <p class="page-subtitle">A reference key to interpreting the quantitative results and the Contextual Impact (Gravity) obtained during the algorithmic evaluation.</p>
+      </header>
 
-    <div class="legend-container">
-      
-      <div class="legend-row">
-        <div class="color-indicator"><div class="dot red"></div></div>
-        <div class="score-info">
-          <div class="score-name">High Score</div>
-          <div class="score-range">8.01 – 10.0</div>
+      <div class="legend-container">
+        <div class="legend-row">
+          <div class="color-indicator"><div class="dot red"></div></div>
+          <div class="score-info"><div class="score-name">High Score</div></div>
+          <div class="description"><strong>Critical:</strong> Strong evidence of violations or significant risks. Immediate redesign required.</div>
         </div>
-        <div class="description">
-          <strong>Critical:</strong> Strong evidence of violations or significant risks. Immediate redesign required.
+
+        <div class="legend-row">
+          <div class="color-indicator"><div class="dot orange"></div></div>
+          <div class="score-info"><div class="score-name">Medium-High</div></div>
+          <div class="description"><strong>Problematic:</strong> Notable imbalances detected. Requires thorough review.</div>
+        </div>
+
+        <div class="legend-row">
+          <div class="color-indicator"><div class="dot yellow"></div></div>
+          <div class="score-info"><div class="score-name">Medium Score</div></div>
+          <div class="description"><strong>Moderate:</strong> Consistent, but with visible room for optimization.</div>
+        </div>
+
+        <div class="legend-row">
+          <div class="color-indicator"><div class="dot lightblue"></div></div>
+          <div class="score-info"><div class="score-name">Low-Medium</div></div>
+          <div class="description"><strong>Good:</strong> High level of consistency. Minor optimizations suggested.</div>
+        </div>
+
+        <div class="legend-row">
+          <div class="color-indicator"><div class="dot blue"></div></div>
+          <div class="score-info"><div class="score-name">Low Score</div></div>
+          <div class="description"><strong>Optimal:</strong> Fully compliant. No evidence of risk emerges from this metric.</div>
         </div>
       </div>
-
-      <div class="legend-row">
-        <div class="color-indicator"><div class="dot orange"></div></div>
-        <div class="score-info">
-          <div class="score-name">Medium-High</div>
-          <div class="score-range">6.01 – 8.0</div>
-        </div>
-        <div class="description">
-          <strong>Problematic:</strong> Notable imbalances detected. Requires thorough review.
-        </div>
-      </div>
-
-      <div class="legend-row">
-        <div class="color-indicator"><div class="dot yellow"></div></div>
-        <div class="score-info">
-          <div class="score-name">Medium Score</div>
-          <div class="score-range">4.01 – 6.0</div>
-        </div>
-        <div class="description">
-          <strong>Moderate:</strong> Consistent, but with visible room for optimization.
-        </div>
-      </div>
-
-      <div class="legend-row">
-        <div class="color-indicator"><div class="dot lightblue"></div></div>
-        <div class="score-info">
-          <div class="score-name">Low-Medium</div>
-          <div class="score-range">2.01 – 4.0</div>
-        </div>
-        <div class="description">
-          <strong>Good:</strong> High level of consistency. Minor optimizations suggested.
-        </div>
-      </div>
-
-      <div class="legend-row">
-        <div class="color-indicator"><div class="dot blue"></div></div>
-        <div class="score-info">
-          <div class="score-name">Low Score</div>
-          <div class="score-range">0.0 – 2.0</div>
-        </div>
-        <div class="description">
-          <strong>Optimal:</strong> Fully compliant. No evidence of risk emerges from this metric.
-        </div>
-      </div>
-
-    </div>
-
-
-    <div class="page-number">{{ pageNumber }}</div>
-  </div>
-</template>
+    </div> <div class="page-number">{{ pageNumber }}</div>
+  </div> </template>
 
 <style scoped>
 @import url('https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=Inter:wght@400;500;600;700&display=swap');
@@ -119,7 +89,7 @@ const props = defineProps({
 
 /* Titoli */
 .title-section { margin-bottom: 12mm; }
-.h1 {
+.page-title {
   font-family: 'Instrument Serif', serif;
   font-size: 48px;
   line-height: 1;
@@ -194,4 +164,14 @@ const props = defineProps({
 @media print {
   .page { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
 }
+
+.section-label {
+  font-family: 'Inter', sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  color: #1d4ed8; /* Usa il blu scuro del tuo brand, oppure #64748b per un grigio tecnico */
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  margin-bottom: 8px;
+} 
 </style>

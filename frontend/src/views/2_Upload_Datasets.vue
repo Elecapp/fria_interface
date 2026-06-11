@@ -9,12 +9,7 @@ const selectedDataset = ref(null);
 
 // I due scenari esatti per l'esperimento controllato (Toy Branch)
 const toyScenarios = [
-  {
-    id: "credit_score_case1_pre", // Deve combaciare ESATTAMENTE col nome del file JSON
-    name: "Bank Case 1",
-    description: "A credit scoring system that has been evaluated and shows good performance across all demographic groups. It does not show significant disparities in approval rates for",
-    type: "Credit Scoring"
-  },
+
   {
     id: "credit_score_case2_pre", // Deve combaciare ESATTAMENTE col nome del file JSON
     name: "Bank Case 2",

@@ -18,7 +18,7 @@ const props = defineProps({
     <div class="center-content">
       <h1 class="title">Final Evaluation<br />Report</h1>
       <div class="divider"></div>
-      <p class="subtitle">AI Impact Assessment on Fundamental Rights</p>
+      <p class="subtitle">Fundamental Rights Impact Assessment of the AI system X</p>
     </div>
 
     <div class="bottom-metadata">

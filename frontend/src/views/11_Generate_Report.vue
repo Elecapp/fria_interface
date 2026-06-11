@@ -1,6 +1,6 @@
 <script setup>
 import { API_HOST } from "../utils/config";
-import { onMounted, ref, computed, nextTick } from "vue";
+import { onMounted, ref, computed, nextTick, markRaw } from "vue";
 import { useRoute } from "vue-router";
 
 import CoverPage1 from "../components/report/0CoverPage.vue";
@@ -15,52 +15,57 @@ import GroupMetricMapViewReport from "../components/report/GroupMetricMapViewRep
 import RecordWithTableViewReport from "../components/report/RecordWithTableViewReport.vue";
 import CardMapReport from "../components/report/CardMapReport.vue";
 
+
 const route = useRoute();
 
-// if you pass /report/:runId
 const runId = computed(() => String(route.params.runId || ""));
 
-//initialize header 
 const meta = ref({
   evaluation_date: "Month, Day, Year",
   dataset_name: "Dataset Test",
-  evaluator: "Corporate XXX",
+  evaluator: "Credit Institution Y",
 });
 
 const loading = ref(false);
 const error = ref("");
 
-//printPDF
 const isPrintMode = computed(() => route.query.print === "1");
 const pdfTriggered = ref(false);
 
-
-// Dynamic metric pages and its schemas
-const resultSchemas = ref({})
+const resultSchemas = ref({});
 const metricPages = ref([]);
-
-//last page reports 
 const reportJson = ref({});
-
-//pagination for the scores
 const summaryPages = ref([]);
 
 function resolveSchema(metricKey, schemaMap) {
   return schemaMap?.[metricKey]?.schema ?? null;
 }
-//renderer for displaying
+/** 
+function getReportRenderer(schema) {
+  switch (schema) {
+    case "card_map": return CardMapReport;
+    case "scalar_map": return ScalarMapViewReport;
+    case "conditional_nested": return ConditionalNestedViewReport;
+    case "group_metric_map": return GroupMetricMapViewReport;
+    case "record_with_table": return RecordWithTableViewReport;
+    default: return null;
+  }
+}
+*/
+// Sostituisci la tua vecchia funzione con questa:
+
 function getReportRenderer(schema) {
   switch (schema) {
     case "card_map":
-      return CardMapReport;
+      return markRaw(CardMapReport);
     case "scalar_map":
-      return ScalarMapViewReport;
+      return markRaw(ScalarMapViewReport);
     case "conditional_nested":
-      return ConditionalNestedViewReport;
+      return markRaw(ConditionalNestedViewReport);
     case "group_metric_map":
-      return GroupMetricMapViewReport;
+      return markRaw(GroupMetricMapViewReport);
     case "record_with_table":
-      return RecordWithTableViewReport;
+      return markRaw(RecordWithTableViewReport);
     default:
       return null;
   }
@@ -73,14 +78,9 @@ function prettifyLabel(str) {
     .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-//maximum score used
-const maxScore = 10;
-
-//BUILD PAGES of the report / 1 per sensitive feature or 1 for metric
 function buildMetricPages(reportJson, schemaMap) {
   const pages = [];
 
-  //looping over top level metrics
   for (const [metricKey, metricGroup] of Object.entries(reportJson || {})) {
     if (!metricGroup || typeof metricGroup !== "object") continue;
 
@@ -89,11 +89,9 @@ function buildMetricPages(reportJson, schemaMap) {
 
     if (!schema || !reportComponent) continue;
 
-    // CASE 1: One report page for each feature of the metric
     if (schema === "conditional_nested" || schema === "group_metric_map" || schema === "scalar_map") {
       for (const [featureKey, metricEntry] of Object.entries(metricGroup)) {
         if (!metricEntry || typeof metricEntry !== "object") continue;
-
         pages.push({
           id: `${metricKey}__${featureKey}`,
           metricKey,
@@ -103,13 +101,7 @@ function buildMetricPages(reportJson, schemaMap) {
           data: metricEntry,
         });
       }
-    }
-
-    // CASE 2: One report page for global-wrapper metrics
-    else if (
-      metricGroup["(global)"] &&
-      typeof metricGroup["(global)"] === "object"
-    ) {
+    } else if (metricGroup["(global)"] && typeof metricGroup["(global)"] === "object") {
       pages.push({
         id: `${metricKey}`,
         metricKey,
@@ -118,10 +110,7 @@ function buildMetricPages(reportJson, schemaMap) {
         reportComponent,
         data: metricGroup["(global)"],
       });
-    }
-
-    // CASE 3: One report page for standard metric-level metrics
-    else {
+    } else {
       pages.push({
         id: metricKey,
         metricKey,
@@ -132,42 +121,31 @@ function buildMetricPages(reportJson, schemaMap) {
       });
     }
   }
-
   return pages;
 }
 
-//generatePDF
 async function generatePdf() {
   if (pdfTriggered.value) return;
   pdfTriggered.value = true;
 
   try {
     error.value = "";
-
     const res = await fetch(`${API_HOST}/results/generate_pdf`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        run_id: runId.value,
-      }),
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ run_id: runId.value }),
     });
 
-    if (!res.ok) {
-      throw new Error(await res.text());
-    }
+    if (!res.ok) throw new Error(await res.text());
 
     const blob = await res.blob();
     const url = window.URL.createObjectURL(blob);
-
     const a = document.createElement("a");
     a.href = url;
     a.download = `final_evaluation_report_${runId.value}.pdf`;
     document.body.appendChild(a);
     a.click();
     a.remove();
-
     window.URL.revokeObjectURL(url);
   } catch (e) {
     error.value = e?.message || String(e);
@@ -175,97 +153,116 @@ async function generatePdf() {
   }
 }
 
-//build scores dynamically to have them split into more pages
-// Sostituisci la tua funzione buildGroupedScores attuale con questa:
+// LA FUNZIONE CORRETTA E PULITA
 function buildGroupedScores(reportJson) {
   const grouped = {};
+  let orderCounter = 0;
+
+  // Stampo il JSON appena arriva per assicurarci che sia tutto okay
+  console.log("1. Inizio elaborazione reportJson:", reportJson);
 
   for (const [topKey, topValue] of Object.entries(reportJson || {})) {
     if (!topValue || typeof topValue !== "object") continue;
 
-    // Funzione interna per mappare i campi corretti
-    const mapEntry = (entry, label, right) => {
+    // Funzione magica che trova i dati ovunque siano nascosti
+    const extractData = (entry, fallbackName) => {
+      // Caccia alla Likelihood: controlla tutti i posti possibili
+      let l = entry.final_score;
+      if (l === undefined && entry.summary_report) l = entry.summary_report["Final Score"];
+      if (l === undefined && entry.disparity_summary) l = entry.disparity_summary.final_score;
+      if (l === undefined && entry.context_report) l = entry.context_report["Final Score"];
+      l = Number(l) || 0;
+
+      // Trova Gravity
+      let g = Number(entry.gravity_report ?? entry.gravity ?? 0);
+
+      // Trova Reversibilità
+      let isRev = entry.reversibility_report === true;
+      let revMulti = isRev ? 1 : 1.5;
+
+      // IL FAMOSO CALCOLO MATEMATICO CHE ORA NON PUÒ FALLIRE
+      let calculatedFinalScore = Number((l * g * revMulti).toFixed(2));
+
+      // Nome e Dominio
+      let domain = entry.metric_right_report || entry.right_report || "Unknown Domain";
+      let metricName = entry.metric_report || entry.metric || fallbackName;
+
       return {
-        label: label,
-        likelihood: Number(entry.final_score ?? 0), // Prende final_score
-        gravity: Number(entry.gravity_report ?? 0), // Prende gravity_report
-        domain: right,
-        reversibility: !!entry.reversibility_report
+        label: prettifyLabel(metricName),
+        likelihood: l,
+        gravity: g,
+        finalScore: calculatedFinalScore,
+        domain: prettifyLabel(domain),
+        reversibility: isRev,
+        order: orderCounter++
       };
     };
 
-    // CASE 1: Metrica con struttura semplice (es. anonymity_set_size)
-    if ("final_score" in topValue && !topValue.full_results) {
-      const right = prettifyLabel(topValue.metric_right_report || topValue.right_report || "Privacy");
-      const metric = prettifyLabel(topValue.metric_report || topValue.context_report?.metric || topKey);
-      
-      if (!grouped[right]) grouped[right] = [];
-      grouped[right].push(mapEntry(topValue, metric, right));
-      continue;
-    }
+    // È una metrica principale (es. Anonymity) o raggruppata (es. CSP)?
+    if (topValue.metric || topValue.final_score !== undefined) {
+       // METRICA SINGOLA
+       let data = extractData(topValue, topKey);
+       if (!grouped[data.domain]) grouped[data.domain] = [];
+       grouped[data.domain].push(data);
+       
+    } else {
+       // METRICA RAGGRUPPATA (es. Gender in Conditional Statistical Parity)
+       for (const [subKey, subValue] of Object.entries(topValue)) {
+         if (typeof subValue !== "object" || !subValue) continue;
+         
+         // Se è un nodo valido di metrica...
+         if (subValue.metric || subValue.final_score !== undefined || subValue.summary_report) {
+            let data = extractData(subValue, topKey);
+            
+            // Aggiungiamo il prefisso (es: "Gender (Conditional Statistical Parity)")
+            data.label = `${prettifyLabel(subKey)} (${data.label})`;
 
-    // CASE 2: Metrica con sotto-categorie (es. conditional_statistical_parity -> gender)
-    for (const [subKey, entryValue] of Object.entries(topValue)) {
-      if (!entryValue || typeof entryValue !== "object" || !("final_score" in entryValue)) continue;
+            // Se il dominio generale è specificato sopra, lo usiamo
+            if (topValue.metric_right_report) {
+               data.domain = prettifyLabel(topValue.metric_right_report);
+            }
 
-      const right = prettifyLabel(entryValue.metric_right_report || entryValue.right_report || "Non Discrimination");
-      const metric = prettifyLabel(entryValue.metric_report || entryValue.context_report?.metric || topKey);
-      const label = `${prettifyLabel(subKey)} (${metric})`;
-
-      if (!grouped[right]) grouped[right] = [];
-      grouped[right].push(mapEntry(entryValue, label, right));
+            if (!grouped[data.domain]) grouped[data.domain] = [];
+            grouped[data.domain].push(data);
+         }
+       }
     }
   }
 
+  // Stampo il risultato finale! Qui dentro DEVI vedere 50.25 per CSP Gender
+  console.log("2. Risultato finale raggruppato calcolato:", grouped);
+
   return Object.entries(grouped).map(([right, metrics]) => ({
     right,
-    metrics: metrics.sort((a, b) => b.likelihood - a.likelihood),
+    metrics: metrics.sort((a, b) => a.order - b.order)
   }));
 }
-//create pagination of scores with max of 
+
 function paginateScoreGroups(groups, maxRowsPerPage = 14) {
   const pages = [];
   let currentPage = [];
   let currentRows = 0;
 
   for (const group of groups) {
-    // section header row
     const headerRowCost = 1;
-
-    // if header alone doesn't fit, start new page
     if (currentRows + headerRowCost > maxRowsPerPage) {
       pages.push(currentPage);
       currentPage = [];
       currentRows = 0;
     }
 
-    currentPage.push({
-      type: "header",
-      right: group.right,
-    });
+    currentPage.push({ type: "header", right: group.right });
     currentRows += headerRowCost;
 
     for (const metric of group.metrics) {
       const metricRowCost = 1;
-
       if (currentRows + metricRowCost > maxRowsPerPage) {
         pages.push(currentPage);
         currentPage = [];
-
-        // repeat header on the new page
-        currentPage.push({
-          type: "header",
-          right: group.right,
-          continued: true,
-        });
+        currentPage.push({ type: "header", right: group.right, continued: true });
         currentRows = 1;
       }
-
-      currentPage.push({
-        type: "metric",
-        right: group.right,
-        ...metric,
-      });
+      currentPage.push({ type: "metric", right: group.right, ...metric });
       currentRows += metricRowCost;
     }
   }
@@ -277,44 +274,64 @@ function paginateScoreGroups(groups, maxRowsPerPage = 14) {
   return pages;
 }
 
-/////////////////////////////////////////////////////
-//dynamic pages adjustment after pages afer 1 and 2//
-/////////////////////////////////////////////////////
 onMounted(async () => {
-  
   window.__REPORT_READY__ = false;
-  
   try {
     loading.value = true;
     error.value = "";
 
-    //FROM THIS ENDPOINT TAKE ONLY: date, run_id for first 2 pages of the report
     const res = await fetch(`${API_HOST}/results/values_to_display`);
     if (!res.ok) throw new Error(await res.text());
     const data = await res.json();
 
-    //DATE, DATASET NAME for the evaluation
     meta.value = {
       evaluation_date: data?.evaluation_date ?? meta.value.evaluation_date,
       dataset_name: data?.dataset_name ?? meta.value.dataset_name,
       evaluator: data?.evaluator ?? meta.value.evaluator,
     };
 
-    //get the content of the _report
     const reportRes = await fetch(`${API_HOST}/results/${runId.value}_report`);
     if (!reportRes.ok) throw new Error(await reportRes.text());
     const reportData = await reportRes.json();
 
+    // =========================================================================
+    // INIZIO MAGIA: Ricalcoliamo i punteggi di tutto il JSON alla fonte
+    // =========================================================================
+    const fixScoresRecursively = (obj) => {
+      if (!obj || typeof obj !== 'object') return;
+
+      // Se questo "nodo" del JSON ha il campo total_score_report, lo correggiamo!
+      if ('total_score_report' in obj) {
+        let l = obj.final_score;
+        if (l === undefined && obj.summary_report) l = obj.summary_report["Final Score"];
+        if (l === undefined && obj.disparity_summary) l = obj.disparity_summary.final_score;
+        if (l === undefined && obj.context_report) l = obj.context_report["Final Score"];
+        l = Number(l) || 0;
+
+        let g = Number(obj.gravity_report ?? obj.gravity ?? 0);
+        let revMulti = obj.reversibility_report === true ? 1 : 1.5;
+
+        // Sovrascriviamo il punteggio vecchio col vero calcolo (es. 50.25)
+        obj.total_score_report = Number((l * g * revMulti).toFixed(2));
+      }
+
+      // Continua a cercare in tutte le altre metriche del JSON
+      for (const key in obj) {
+        fixScoresRecursively(obj[key]);
+      }
+    };
+
+    fixScoresRecursively(reportData);
+    // =========================================================================
+    // FINE MAGIA
+    // =========================================================================
+
     reportJson.value = reportData;
 
-    //build pages for the report -> max 20 scores per page
     const groupedScores = buildGroupedScores(reportData);
     summaryPages.value = paginateScoreGroups(groupedScores, 18);
 
-    // schemas
-    const schemaRes = await fetch(
-      `${API_HOST}/results/result_schemas?run_id=${encodeURIComponent(runId.value)}` //schema with also runId
-    );
+    const schemaRes = await fetch(`${API_HOST}/results/result_schemas?run_id=${encodeURIComponent(runId.value)}`);
     if (!schemaRes.ok) throw new Error(await schemaRes.text());
     const schemaData = await schemaRes.json();
 
@@ -329,21 +346,18 @@ onMounted(async () => {
 
     window.__REPORT_READY__ = true;
 
-    
     if (!isPrintMode.value) {
-      setTimeout(() => {
-      generatePdf();
-      });
+      setTimeout(() => { generatePdf(); });
     }
-      
 
-    } catch (e) {
-      error.value = e?.message || String(e);
-      window.__REPORT_READY__ = false;
-    } finally {
-      loading.value = false;
-    }
+  } catch (e) {
+    error.value = e?.message || String(e);
+    window.__REPORT_READY__ = false;
+  } finally {
+    loading.value = false;
+  }
 });
+
 </script>
 
 <template>
@@ -364,11 +378,7 @@ onMounted(async () => {
         <MetricReportPage2 :meta="meta" page-number="3" />
       </section>
 
-      <section
-        v-for="(page, index) in metricPages"
-        :key="page.id"
-        class="pdfPage"
-      >
+      <section v-for="(page, index) in metricPages" :key="page.id" class="pdfPage">
         <component
           :is="page.reportComponent"
           :node="page.data"
@@ -379,27 +389,19 @@ onMounted(async () => {
         />
       </section>
 
-      <section v-for="(rows, summaryIndex) in summaryPages"
-        :key="`summary-page-${summaryIndex}`"
-        class="pdfPage">
-        <LastPage2
-          :meta="meta"
-          :rows="rows"
-          :page-number="metricPages.length + 4 + summaryIndex"
-        />
+      <section v-for="(rows, summaryIndex) in summaryPages" :key="`summary-page-${summaryIndex}`" class="pdfPage">
+        <LastPage2 :meta="meta" :rows="rows" :page-number="metricPages.length + 4 + summaryIndex" />
       </section>
     </template>
   </div>
 </template>
 
 <style scoped>
-/* Print-friendly container */
 .reportRoot {
-  background: #ddd; /* outside page */
+  background: #ddd;
   padding: 16px;
 }
 
-/* A4 portrait page box */
 .pdfPage {
   width: 210mm;
   height: 297mm;
@@ -410,7 +412,6 @@ onMounted(async () => {
   page-break-after: always;
 }
 
-/* print rules */
 @media print {
   .reportRoot { background: transparent; padding: 0; }
   .pdfPage {
@@ -420,6 +421,7 @@ onMounted(async () => {
   }
   .loading { display: none; }
 }
+
 .loading {
   width: 210mm;
   margin: 0 auto;

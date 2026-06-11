@@ -7,39 +7,37 @@ const props = defineProps({
   pageNumber: { type: [String, Number], default: "" },
 });
 
-// 1. Scala Likelihood (0-10)
 function getLikelihoodLabel(score) {
-  if (score <= 2) return { text: "Optimal", color: "#1d4ed8", textColor: "#ffffff" };
-  if (score <= 4) return { text: "Good", color: "#38bdf8", textColor: "#000000" };
-  if (score <= 6) return { text: "Moderate", color: "#facc15", textColor: "#000000" };
-  if (score <= 8) return { text: "Problematic", color: "#f97316", textColor: "#000000" };
-  return { text: "Critical", color: "#ef4444", textColor: "#ffffff" };
+  if (score <= 2) return { text: "Low", color: "#1d4ed8", textColor: "#ffffff" };
+  if (score <= 4) return { text: "Low-Medium", color: "#38bdf8", textColor: "#000000" };
+  if (score <= 6) return { text: "Medium", color: "#facc15", textColor: "#000000" };
+  if (score <= 8) return { text: "Medium-High", color: "#f97316", textColor: "#000000" };
+  return { text: "High", color: "#ef4444", textColor: "#ffffff" };
 }
 
-// 2. Scala Gravity (0-5)
 function getGravityLabel(score) {
-  if (score <= 1) return { text: "Optimal", color: "#1d4ed8", textColor: "#ffffff" };
-  if (score <= 2) return { text: "Good", color: "#38bdf8", textColor: "#000000" };
-  if (score <= 3) return { text: "Moderate", color: "#facc15", textColor: "#000000" };
-  if (score <= 4) return { text: "Problematic", color: "#f97316", textColor: "#000000" };
-  return { text: "Critical", color: "#ef4444", textColor: "#ffffff" };
+  if (score <= 1) return { text: "Low", color: "#1d4ed8", textColor: "#ffffff" };
+  if (score <= 2) return { text: "Low-Medium", color: "#38bdf8", textColor: "#000000" };
+  if (score <= 3) return { text: "Medium", color: "#facc15", textColor: "#000000" };
+  if (score <= 4) return { text: "Medium-High", color: "#f97316", textColor: "#000000" };
+  return { text: "High", color: "#ef4444", textColor: "#ffffff" };
 }
 
-// 3. Scala Final Risk Score (0-75)
 function getFinalRiskLabel(score) {
-  if (score <= 15) return { text: "Optimal", color: "#1d4ed8", textColor: "#ffffff" };
-  if (score <= 30) return { text: "Good", color: "#38bdf8", textColor: "#000000" };
-  if (score <= 45) return { text: "Moderate", color: "#facc15", textColor: "#000000" };
-  if (score <= 60) return { text: "Problematic", color: "#f97316", textColor: "#000000" };
-  return { text: "Critical", color: "#ef4444", textColor: "#ffffff" };
+  const v = Number(score) || 0;
+  if (v <= 7.45) return { text: "Low", color: "#1d4ed8", textColor: "#ffffff" };
+  if (v <= 15) return { text: "Low-Medium", color: "#38bdf8", textColor: "#000000" };
+  if (v <= 24.5) return { text: "Medium", color: "#facc15", textColor: "#000000" };
+  if (v <= 42) return { text: "Medium-High", color: "#f97316", textColor: "#000000" };
+  return { text: "High", color: "#ef4444", textColor: "#ffffff" };
 }
 
-// Raggruppamento
 const groupedTableRows = computed(() => {
   const groups = [];
-  const metrics = props.rows.filter(r => r.type === 'metric');
   
-  metrics.forEach(r => {
+  props.rows.forEach(r => {
+    if (r.type !== 'metric') return;
+    
     const domain = r.right || 'N/A';
     let group = groups.find(g => g.domain === domain);
     
@@ -48,19 +46,14 @@ const groupedTableRows = computed(() => {
       groups.push(group);
     }
     
-    const l = r.likelihood || 0;
-    const g = r.gravity || 0;
-    // Calcoliamo il moltiplicatore della reversibilità come nel backend (NO = rischio x 1.5)
-    const revMultiplier = r.reversibility === false ? 1.5 : 1;
-    const finalScoreValue = parseFloat((l * g * revMultiplier).toFixed(2));
-
     group.items.push({
       metric: r.label,
-      likelihood: l,
-      gravity: g,
-      finalScore: finalScoreValue
+      likelihood: r.likelihood || 0,
+      gravity: r.gravity || 0,
+      finalScore: r.finalScore || 0 
     });
   });
+  
   return groups;
 });
 </script>
@@ -179,7 +172,7 @@ const groupedTableRows = computed(() => {
 
 .summary-table {
   width: 100%;
-  table-layout: fixed; /* Mantiene la tabella nelle righe del foglio */
+  table-layout: fixed;
   border-collapse: collapse;
   font-size: 9.5px; 
 }
@@ -193,7 +186,6 @@ const groupedTableRows = computed(() => {
   vertical-align: middle;
 }
 
-/* Larghezze fissate per non schiacciare le celle */
 .summary-table th:nth-child(1), .summary-table td:nth-child(1) { width: 18%; }
 .summary-table th:nth-child(2), .summary-table td:nth-child(2) { width: 28%; }
 .summary-table th:nth-child(3), .summary-table td:nth-child(3) { width: 18%; }

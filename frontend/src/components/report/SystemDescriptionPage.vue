@@ -4,6 +4,7 @@ defineProps({
   meta: { type: Object, required: true },
   pageNumber: { type: [String, Number], default: "" },
 });
+
 </script>
 
 <template>
@@ -20,6 +21,8 @@ defineProps({
 
     <div class="page-inner">
       <header class="title-block">
+        <div class="section-label">SECTION A</div>
+        
         <h1 class="page-title">Application of the system and Description</h1>
         <p class="page-subtitle">Description and analysis of the AI system, including related data flows</p>
       </header>
@@ -140,7 +143,7 @@ defineProps({
 }
 .page-title {
   font-family: 'Instrument Serif', serif;
-  font-size: 24pt;
+  font-size: 20pt;
   line-height: 1.1;
   margin: 0 0 4px 0;
   color: #1e293b;
@@ -165,7 +168,7 @@ defineProps({
   color: #1e293b;
   border-bottom: 1px solid #e2e8f0;
   padding-bottom: 4px;
-  margin-top: 4mm;
+  margin-top: 3mm;
   margin-bottom: 2mm;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -193,5 +196,15 @@ defineProps({
   font-size: 10px;
   font-family: monospace;
   color: #94a3b8;
+}
+
+.section-label {
+  font-family: 'Inter', sans-serif;
+  font-size: 11px;
+  font-weight: 700;
+  color: #1d4ed8; /* Usa il blu scuro del tuo brand, oppure #64748b per un grigio tecnico */
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  margin-bottom: 8px;
 }
 </style>
