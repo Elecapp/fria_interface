@@ -12,16 +12,16 @@ const toyScenarios = [
 
   {
     id: "credit_score_case2_pre", // Deve combaciare ESATTAMENTE col nome del file JSON
-    name: "Bank Case 2",
+    name: "FRIA for AI system X",
     description: "A credit scoring system that has been evaluated and shows significant disparities in approval rates for different demographic groups. It may indicate potential bias or unfairness in the algorithm's decision-making process.",
     type: "Credit Scoring"
   },
-  {
-    id: "credit_score_case2",
-    name: "Bank Case 3",
-    description: " A credit scoring system that needs to be evaluated by domain experts",
-    type: "Credit Scoring"
-  }
+  //{
+  //  id: "credit_score_case2",
+  //  name: "Bank Case 3",
+  //  description: " A credit scoring system that needs to be evaluated by domain experts",
+  //  type: "Credit Scoring"
+  //}
 ];
 
 const canGoNext = computed(() => selectedDataset.value !== null);
@@ -58,7 +58,7 @@ function goBack() {
         
         <button class="back-button" @click="goBack">← Back</button>
 
-        <h1 class="main-title">Select Case Study</h1>
+        <h1 class="main-title">Select AI System to Evaluate </h1>
         
         <p class="description">
           The evaluator has computed a set of metrics to help assess the potential impact of the AI system on fundamental rights. Before continuing, please review these results carefully and provide your feedback on two aspects: <b>reversibility</b> and <b>gravity</b>.<br><br>

@@ -5,7 +5,6 @@ import { useRouter, useRoute } from "vue-router";
 import ProcessStepper from "../components/ProcessStepper.vue";
 
 import {
-  DEFAULT_WEIGHT,
   DEFAULT_WEIGHT_JUSTIFICATION,
   buildConditionalNestedFeatureSavePayload,
   buildGroupMapFeatureSavePayload,
@@ -31,6 +30,9 @@ const pdfError = ref("");
 const expandedGroup = ref("");
 const domainReversibility = ref({});
 
+// Usiamo 1 come valore base per la nuova scala 1-5
+const BASE_GRAVITY = 1;
+
 function toggleGroup(groupName) {
   expandedGroup.value = expandedGroup.value === groupName ? "" : groupName;
 }
@@ -49,7 +51,6 @@ async function saveDomainReversibility(groupName) {
       domain: groupName,
       reversibility: isReversible
     };
-    // ORA È ATTIVO!
     await fetch(`${API_HOST}/results/save_domain_config`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -88,8 +89,6 @@ async function generatePdf() {
   }
 }
 
-// --- LOGICA UNIVERSALE DI RAGGRUPPAMENTO METRICHE ---
-// Ora il sistema è generalizzato per QUALSIASI caso studio futuro
 const groupedMetrics = computed(() => {
   const out = {};
   const allMetricKeys = Object.keys(resultSchemas.value || {});
@@ -118,7 +117,6 @@ async function fetchData() {
     loadingMetrics.value = true;
     metricsError.value = "";
 
-    // Legge il runId DALL'URL (Fiducia nell'URL)
     runId.value = route.params.runId || "";
 
     let fetchUrl = `${API_HOST}/results/values_to_display`;
@@ -130,12 +128,10 @@ async function fetchData() {
 
     latestResults.value = valsData?.results?.results ? valsData.results : valsData;
     
-    // Scarica gli Schemi
     const schemasResp = await fetch(`${API_HOST}/results/result_schemas?run_id=${encodeURIComponent(runId.value)}`);
     if (!schemasResp.ok) throw new Error(await schemasResp.text());
     resultSchemas.value = await schemasResp.json();
 
-    // Tenta di scaricare il Report (Se dà 404 è normale, vuol dire che l'utente non ha salvato nulla)
     try {
       const reportResp = await fetch(`${API_HOST}/results/${runId.value}_report`);
       if (reportResp.ok) {
@@ -147,10 +143,7 @@ async function fetchData() {
       existingReport.value = {};
     }
 
-    // --- CORREZIONE REVERSIBILITY (Bug 4) ---
-    // Invece di azzerare sempre a false, recuperiamo lo stato precedentemente salvato nel report!
     const savedDomainConfigs = existingReport.value?.domain_configs || {};
-    
     groupNames.value.forEach(group => { 
       if (savedDomainConfigs[group] !== undefined) {
         domainReversibility.value[group] = savedDomainConfigs[group].reversibility;
@@ -175,12 +168,11 @@ function isMetricReviewed(metricKey) {
     const m = report[metricKey];
     if (!m || typeof m !== "object") return false;
 
-    // Ora diventa verde SOLO se l'utente ha esplicitamente salvato un peso (gravity)
-    if (m.gravity_report !== undefined || m.user_weight_report !== undefined) return true;
-    if (m["(global)"] && (m["(global)"].gravity_report !== undefined || m["(global)"].user_weight_report !== undefined)) return true;
+    if (m.user_weight_report !== undefined || m.user_justification_report !== undefined) return true;
+    if (m["(global)"] && (m["(global)"].user_weight_report !== undefined || m["(global)"].user_justification_report !== undefined)) return true;
 
     for (const key in m) {
-      if (m[key] && typeof m[key] === "object" && (m[key].gravity_report !== undefined || m[key].user_weight_report !== undefined)) {
+      if (m[key] && typeof m[key] === "object" && (m[key].user_weight_report !== undefined || m[key].user_justification_report !== undefined)) {
         return true;
       }
     }
@@ -188,16 +180,22 @@ function isMetricReviewed(metricKey) {
 }
 
 function getReportRoot() { return existingReport.value?.results ?? existingReport.value ?? {}; }
-function getSavedGlobalWeight(metric) { return getReportRoot()?.[metric]?.["(global)"]?.user_weight_report ?? DEFAULT_WEIGHT; }
+
+// Getters blindati per non sovrascrivere i pesi (Recuperano i tuoi 5 o impostano 1)
+function getSavedGlobalWeight(metric) { const m = getReportRoot()?.[metric]?.["(global)"]; return m?.user_weight_report ?? m?.gravity_report ?? BASE_GRAVITY; }
 function getSavedGlobalJustification(metric) { return getReportRoot()?.[metric]?.["(global)"]?.user_justification_report ?? DEFAULT_WEIGHT_JUSTIFICATION; }
-function getSavedMetricWeight(metric) { return getReportRoot()?.[metric]?.user_weight_report ?? DEFAULT_WEIGHT; }
+function getSavedMetricWeight(metric) { const m = getReportRoot()?.[metric]; return m?.user_weight_report ?? m?.gravity_report ?? BASE_GRAVITY; }
 function getSavedMetricJustification(metric) { return getReportRoot()?.[metric]?.user_justification_report ?? DEFAULT_WEIGHT_JUSTIFICATION; }
-function getSavedFeatureWeight(metric, feature) { return getReportRoot()?.[metric]?.[feature]?.user_weight_report ?? DEFAULT_WEIGHT; }
+function getSavedFeatureWeight(metric, feature) { const m = getReportRoot()?.[metric]?.[feature]; return m?.user_weight_report ?? m?.gravity_report ?? BASE_GRAVITY; }
 function getSavedFeatureJustification(metric, feature) { return getReportRoot()?.[metric]?.[feature]?.user_justification_report ?? DEFAULT_WEIGHT_JUSTIFICATION; }
 
 async function buildReportPayloadWithDefaults() {
   const all = latestResults.value?.results ?? latestResults.value ?? {};
+  
   for (const [groupName, metrics] of Object.entries(groupedMetrics.value)) {
+    // 1. LEGGI LA REVERSIBILITÀ DALLA DASHBOARD
+    const domainRev = !!domainReversibility.value[groupName];
+
     for (const metricEntry of metrics) {
       const metric = metricEntry.key;
       const schemaType = resultSchemas.value?.[metric]?.schema ?? null;
@@ -206,13 +204,24 @@ async function buildReportPayloadWithDefaults() {
       const metricObj = all?.[metric];
       if (!metricObj || typeof metricObj !== "object") continue;
 
+      // 2. INIEZIONE FORZATA DELLA REVERSIBILITÀ
+      // Ora il codice non salta più le metriche già viste, ma le ri-salva tutte con i loro pesi corretti + la Reversibility
+      
       if (schemaType === "card_map") {
-        const payload = buildCardMapSavePayload({ runId: runId.value, group: groupName, metric, schemaType, metricObj, userWeight: getSavedGlobalWeight(metric), userJustification: getSavedGlobalJustification(metric) });
+        const w = getSavedGlobalWeight(metric);
+        const j = getSavedGlobalJustification(metric);
+        const payload = buildCardMapSavePayload({ runId: runId.value, group: groupName, metric, schemaType, metricObj, userWeight: w, userJustification: j });
+        payload.gravity = w;
+        payload.reversibility = domainRev; // <--- INIETTATO QUI
         await fetch(`${API_HOST}/results/save_weights`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
         continue;
       }
       if (schemaType === "record_with_table") {
-        const payload = buildRecordWithTableSavePayload({ runId: runId.value, group: groupName, metric, metricObj, userWeight: getSavedMetricWeight(metric), userJustification: getSavedMetricJustification(metric) });
+        const w = getSavedMetricWeight(metric);
+        const j = getSavedMetricJustification(metric);
+        const payload = buildRecordWithTableSavePayload({ runId: runId.value, group: groupName, metric, metricObj, userWeight: w, userJustification: j });
+        payload.gravity = w;
+        payload.reversibility = domainRev; // <--- INIETTATO QUI
         await fetch(`${API_HOST}/results/save_weights`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
         continue;
       }
@@ -220,19 +229,31 @@ async function buildReportPayloadWithDefaults() {
         const rows = Object.entries(metricObj).map(([label, value]) => ({ label, value }));
         if (!rows.length) continue;
         const weightsByLabel = {}; const justificationsByLabel = {};
-        for (const row of rows) { weightsByLabel[row.label] = getSavedFeatureWeight(metric, row.label); justificationsByLabel[row.label] = getSavedFeatureJustification(metric, row.label); }
+        for (const row of rows) { 
+            weightsByLabel[row.label] = getSavedFeatureWeight(metric, row.label); 
+            justificationsByLabel[row.label] = getSavedFeatureJustification(metric, row.label); 
+        }
         const payload = buildScalarMapSavePayload({ runId: runId.value, group: groupName, metric, rows, weightsByLabel, justificationsByLabel });
+        payload.reversibilityByLabel = {};
+        for (const row of rows) { payload.reversibilityByLabel[row.label] = domainRev; } // <--- INIETTATO QUI
         await fetch(`${API_HOST}/results/save_weights`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
         continue;
       }
+      
       const featureKeys = Object.keys(metricObj).filter((k) => k !== "(global)" && metricObj[k] && typeof metricObj[k] === "object");
       for (const feature of featureKeys) {
         let payload;
+        const w = getSavedFeatureWeight(metric, feature);
+        const j = getSavedFeatureJustification(metric, feature);
+        
         if (schemaType === "conditional_nested") {
-          payload = buildConditionalNestedFeatureSavePayload({ runId: runId.value, group: groupName, metric, schemaType, feature, metricObj, weight: getSavedFeatureWeight(metric, feature), justification: getSavedFeatureJustification(metric, feature), formatLabel: prettify, formatValue: (v) => v });
+          payload = buildConditionalNestedFeatureSavePayload({ runId: runId.value, group: groupName, metric, schemaType, feature, metricObj, weight: w, justification: j, formatLabel: prettify, formatValue: (v) => v });
         } else if (schemaType === "group_metric_map") {
-          payload = buildGroupMapFeatureSavePayload({ runId: runId.value, metric, schemaType, feature, metricObj, weight: getSavedFeatureWeight(metric, feature), justification: getSavedFeatureJustification(metric, feature), formatLabel: prettify, formatValue: (v) => v });
+          payload = buildGroupMapFeatureSavePayload({ runId: runId.value, metric, schemaType, feature, metricObj, weight: w, justification: j, formatLabel: prettify, formatValue: (v) => v });
         } else { continue; }
+        
+        payload.gravity = w;
+        payload.reversibility = domainRev; // <--- INIETTATO QUI
         await fetch(`${API_HOST}/results/save_weights`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
       }
     }
@@ -278,20 +299,21 @@ onMounted(fetchData);
 
         <div v-else class="accordion-container">
           <div v-for="group in groupNames" :key="group" class="accordion-section">
-            <button class="accordion-header" :class="{ 'is-open': expandedGroup === group }" @click="toggleGroup(group)">
-              <div class="header-left">
+            
+            <div class="accordion-header" :class="{ 'is-open': expandedGroup === group }">
+              <div class="header-left" @click="toggleGroup(group)" style="cursor: pointer; flex: 1;">
                 <span class="domain-icon">◈</span>
                 <h2>{{ prettify(group) }} Domain</h2>
               </div>
               <div class="header-right">
-                <label class="reversibility-toggle" @click.stop>
+                <label class="reversibility-toggle">
                   <input type="checkbox" v-model="domainReversibility[group]" @change="saveDomainReversibility(group)"/>
                   <span class="checkbox-box"></span>
-                  <span class="checkbox-text">Reversibility (Yes)</span>
+                  <span class="checkbox-text">Reversibility ({{ domainReversibility[group] ? 'Yes' : 'No' }})</span>
                 </label>
-                <span class="chevron" :class="{ 'rotated': expandedGroup === group }">▼</span>
+                <span class="chevron" :class="{ 'rotated': expandedGroup === group }" @click="toggleGroup(group)" style="cursor: pointer; padding: 10px;">▼</span>
               </div>
-            </button>
+            </div>
 
             <div v-show="expandedGroup === group" class="accordion-body">
               <div v-if="groupedMetrics[group].length === 0" class="muted">No metrics selected for this domain.</div>
@@ -341,9 +363,12 @@ onMounted(fetchData);
 .accordion-container { display: flex; flex-direction: column; gap: 1.5rem; }
 .accordion-section { background: #fff; border: 1px solid #e5e5e5; border-radius: 8px; overflow: hidden; box-shadow: 0 4px 6px rgba(0,0,0,0.02); transition: 0.3s; }
 .accordion-section:hover { border-color: #d1d5db; }
-.accordion-header { width: 100%; display: flex; justify-content: space-between; align-items: center; padding: 1.5rem 2rem; background: transparent; border: none; cursor: pointer; transition: background 0.2s; }
+
+/* Adattato da button a div */
+.accordion-header { width: 100%; display: flex; justify-content: space-between; align-items: center; padding: 1.5rem 2rem; background: transparent; border: none; transition: background 0.2s; }
 .accordion-header.is-open { background: #f8fafc; border-bottom: 1px solid #e5e5e5; }
 .accordion-header:hover:not(.is-open) { background: #fafafa; }
+
 .header-left { display: flex; align-items: center; gap: 1rem; }
 .domain-icon { font-size: 1.2rem; color: #1243e3; }
 .accordion-header h2 { font-family: 'Instrument Serif', serif; font-size: 2.2rem; color: #111; margin: 0; }
@@ -381,3 +406,6 @@ onMounted(fetchData);
   .accordion-header h2 { font-size: 1.8rem; }
 }
 </style>
+// CARD MAP VUE: anonymity_set_size,  k_anonymity, l_diversity, t_closeness, mutual_information_metric
+// GroupMetricMapView2.vue: demographic_parity, disparate_impact, equal_opportunity, equalized_odds_difference, predictive_parity, overall_accuracy_equality
+// ConditionalNestedView2.vue:conditional_statistical_parity,conditional_use_accuracy_equality

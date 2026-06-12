@@ -41,11 +41,24 @@ def calculate_fria_risk(likelihood, gravity, is_reversible):
         risk = risk * 1.5 
     return round(risk, 3)
 
-# --- FUNZIONE CHIAVE: Uccide i campi fantasma ---
+
 def strip_report_fields(d):
     """Rimuove le vecchie modifiche dai file pre-compilati per partire da zero."""
     if isinstance(d, dict):
-        keys_to_delete = [k for k in d.keys() if k.endswith("_report") or k in ["gravity", "reversibility", "user_weight"]]
+        # Elenco delle chiavi "vitali" da NON cancellare mai
+        keep_keys = [
+            "metric_description_report", 
+            "metric_right_report", 
+            "right_report", 
+            "schema_type_report"
+        ]
+        
+        # Cancella solo le cose che finiscono in _report MA che non sono nella lista qui sopra
+        keys_to_delete = [
+            k for k in d.keys() 
+            if (k.endswith("_report") and k not in keep_keys) or k in ["gravity", "reversibility", "user_weight"]
+        ]
+        
         for k in keys_to_delete:
             del d[k]
         for v in d.values():
@@ -54,6 +67,7 @@ def strip_report_fields(d):
         for item in d:
             strip_report_fields(item)
     return d
+
 
 logger = logging.getLogger("uvicorn.error")
 router = APIRouter(tags=["results"])
@@ -82,7 +96,7 @@ def values_to_display(run_id: Optional[str] = Query(None)):
         
        # "Bank_case1": "Algoritmo credit score 1",
         "Bank_case2": "Algoritmo credit score 2",
-        "Bank_case3": "Algoritmo credit score 3",
+        #"Bank_case3": "Algoritmo credit score 3",
     }
     fallback_name = current_id.replace("_", " ").title()
     dataset_name = dataset_names_map.get(current_id, f"Dataset: {fallback_name}")
@@ -135,7 +149,7 @@ class WeightsSavePayload(BaseModel):
     schema_type_report: Optional[str] = None
     context_report: Optional[Dict[str, Any]] = None
     summary_report: Optional[Dict[str, Any]] = None
-    gravity: Optional[int] = 0
+    gravity: Optional[float] = 0.0
     reversibility: Optional[bool] = False
     reversibilityByLabel: Dict[str, bool] = Field(default_factory=dict)
     executiveData: Optional[Dict[str, Any]] = Field(default_factory=dict)

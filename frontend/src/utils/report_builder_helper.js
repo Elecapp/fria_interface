@@ -7,8 +7,7 @@
 
 //Default values for the report generation
 export const DEFAULT_WEIGHT = 5;
-export const DEFAULT_WEIGHT_JUSTIFICATION =
-  "Since no weight has been assigned, the default weight 5 has been used";
+export const DEFAULT_WEIGHT_JUSTIFICATION = "Since no weight has been assigned, the gravity is set to low.";;
 
 
 //makes rows into dict

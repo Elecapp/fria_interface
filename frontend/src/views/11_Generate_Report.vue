@@ -294,24 +294,29 @@ onMounted(async () => {
     if (!reportRes.ok) throw new Error(await reportRes.text());
     const reportData = await reportRes.json();
 
-    // =========================================================================
-    // INIZIO MAGIA: Ricalcoliamo i punteggi di tutto il JSON alla fonte
-    // =========================================================================
+
+    // ricalcolo punteggi jsoon alla fonte
+    
     const fixScoresRecursively = (obj) => {
       if (!obj || typeof obj !== 'object') return;
 
-      // Se questo "nodo" del JSON ha il campo total_score_report, lo correggiamo!
-      if ('total_score_report' in obj) {
+      // Se questo "nodo" è una metrica valutata (ha gravity o total_score)
+      if ('total_score_report' in obj || 'gravity_report' in obj || 'user_weight_report' in obj) {
         let l = obj.final_score;
         if (l === undefined && obj.summary_report) l = obj.summary_report["Final Score"];
         if (l === undefined && obj.disparity_summary) l = obj.disparity_summary.final_score;
         if (l === undefined && obj.context_report) l = obj.context_report["Final Score"];
-        l = Number(l) || 0;
+        
+        // FIX T-CLOSENESS: se la metrica non ha score (es. ha solo un "message"), forziamo a 0
+        l = (l !== undefined && !Number.isNaN(Number(l))) ? Number(l) : 0;
 
-        let g = Number(obj.gravity_report ?? obj.gravity ?? 0);
+        // Recuperiamo il peso (se l'utente non ha messo nulla, usiamo 1 come base)
+        let g = Number(obj.user_weight_report ?? obj.gravity_report ?? obj.user_weight ?? obj.gravity ?? 1);
         let revMulti = obj.reversibility_report === true ? 1 : 1.5;
 
-        // Sovrascriviamo il punteggio vecchio col vero calcolo (es. 50.25)
+        // MAGIA VERA: Forziamo il final_score alla radice dell'oggetto! 
+        // In questo modo le pagine del PDF (Gauge) lo troveranno a colpo sicuro.
+        obj.final_score = l;
         obj.total_score_report = Number((l * g * revMulti).toFixed(2));
       }
 
@@ -321,6 +326,7 @@ onMounted(async () => {
       }
     };
 
+  
     fixScoresRecursively(reportData);
     // =========================================================================
     // FINE MAGIA

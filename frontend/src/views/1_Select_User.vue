@@ -7,7 +7,7 @@ const router = useRouter();
 const userProfiles = [
   {
     id: "expert",
-    title: "AI Expert / Auditor",
+    title: "AI Deployer / Auditor",
     description: "Technical evaluator profile. You will review statistical and deep data metrics to establish the formal mathematical algorithmic impact.",
     available: true
   },

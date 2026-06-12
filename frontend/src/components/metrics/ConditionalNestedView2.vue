@@ -1,4 +1,3 @@
-
 <script setup>
 import { API_HOST } from "../../utils/config";
 import { computed, onMounted, ref } from "vue";
@@ -10,13 +9,11 @@ import {
   buildSummaryRows as sharedBuildSummaryRows,
   getFeatureObject as sharedGetFeatureObject,
   getSummaryKeyForFeature as sharedGetSummaryKeyForFeature,
-  isPlainObject,
 } from "../../utils/report_builder_helper";
 
 const route = useRoute();
 const group = computed(() => String(route.params.group || ""));
 
-// FIX: Aggiunte le Props complete per costringere il figlio a usare i dati freschi del Genitore!
 const props = defineProps({ 
   runId: { type: [String, Number], required: true },
   metricKey: { type: String, required: true },
@@ -29,61 +26,69 @@ const activeFeatureTab = ref("");
 const MIN_JUST_LENGTH = 10;
 
 const showHeavyTables = ref(false);
-const DEFAULT_GRAVITY = 0;
+
+const DEFAULT_GRAVITY = 1;
 const featureGravity = ref({});
-const featureReversibility = ref({});
 const featureJustifications = ref({});
 const savedFeatures = ref({});
 const saving = ref(false);
 const saveError = ref("");
 const saveOk = ref(false);
 
-const gravityLabels = {
-  0: "0 - None",
-  1: "1 - Low",
-  2: "2 - Medium",
-  3: "3 - High",
-  4: "4 - Very High"
-};
+function getGravityLabel(val) {
+  const v = Number(val);
+  if (v < 1.5) return "Low";
+  if (v < 2.5) return "Low-Medium";
+  if (v < 3.5) return "Medium";
+  if (v < 4.5) return "Medium-High";
+  return "High";
+}
 
-// FIX: Ora la funzione legge davvero i dati da props.metricObj
 function ensureFeatureState(feature) {
   const featData = props.metricObj?.[feature] || {};
 
   if (!(feature in featureGravity.value)) {
-    const savedGrav = featData.gravity ?? featData.gravity_report ?? featData.user_weight ?? featData.user_weight_report;
+    const savedGrav = featData.user_weight ?? featData.user_weight_report ?? featData.gravity ?? featData.gravity_report;
     featureGravity.value[feature] = savedGrav !== undefined ? Number(savedGrav) : DEFAULT_GRAVITY;
   }
-  if (!(feature in featureReversibility.value)) {
-    const savedRev = featData.reversibility ?? featData.reversibility_report;
-    featureReversibility.value[feature] = savedRev !== undefined ? !!savedRev : false;
-  }
   if (!(feature in featureJustifications.value)) {
-    const savedJust = featData.user_justification ?? featData.user_justification_report ?? featData.justification;
+    let savedJust = featData.user_justification ?? featData.user_justification_report ?? featData.justification;
+    // Se è la giustificazione di default, mostriamo il box vuoto per pulizia visiva
+    if (savedJust === DEFAULT_WEIGHT_JUSTIFICATION) savedJust = "";
     featureJustifications.value[feature] = savedJust !== undefined ? String(savedJust) : "";
   }
   if (!(feature in savedFeatures.value)) {
-    const savedGrav = featData.gravity ?? featData.gravity_report ?? featData.user_weight ?? featData.user_weight_report;
-    savedFeatures.value[feature] = savedGrav !== undefined;
+    const userHasSaved = featData.user_weight_report !== undefined || featData.user_justification_report !== undefined;
+    savedFeatures.value[feature] = userHasSaved;
   }
 }
 
 function isFeatureSaved(feature) { ensureFeatureState(feature); return !!savedFeatures.value[feature]; }
 function getFeatureGravity(feature) { ensureFeatureState(feature); return Number.isFinite(Number(featureGravity.value[feature])) ? Number(featureGravity.value[feature]) : DEFAULT_GRAVITY; }
 function setFeatureGravity(feature, val) { ensureFeatureState(feature); featureGravity.value[feature] = Number(val); savedFeatures.value[feature] = false; saveOk.value = false; saveError.value = ""; }
-function getFeatureReversibility(feature) { ensureFeatureState(feature); return !!featureReversibility.value[feature]; }
-function setFeatureReversibility(feature, val) { ensureFeatureState(feature); featureReversibility.value[feature] = val; savedFeatures.value[feature] = false; saveOk.value = false; saveError.value = ""; }
 function getFeatureJustification(feature) { ensureFeatureState(feature); return String(featureJustifications.value[feature] || ""); }
 function setFeatureJustification(feature, val) { ensureFeatureState(feature); featureJustifications.value[feature] = String(val); savedFeatures.value[feature] = false; saveOk.value = false; saveError.value = ""; }
-function featureNeedsJustification(feature) { ensureFeatureState(feature); return Number(getFeatureGravity(feature)) > 0; }
-function isFeatureValid(feature) { ensureFeatureState(feature); if (!featureNeedsJustification(feature)) return true; return String(getFeatureJustification(feature)).trim().length >= MIN_JUST_LENGTH; }
+
+function featureNeedsJustification(feature) { ensureFeatureState(feature); return Number(getFeatureGravity(feature)) > 1; }
+
+function isFeatureValid(feature) { 
+  ensureFeatureState(feature); 
+  const justLen = String(getFeatureJustification(feature)).trim().length;
+  // Se > 1, è obbligatorio
+  if (featureNeedsJustification(feature)) return justLen >= MIN_JUST_LENGTH;
+  // Se = 1, è opzionale (ma se scrivi, devi scrivere almeno 10 caratteri)
+  return justLen === 0 || justLen >= MIN_JUST_LENGTH;
+}
 
 async function saveFeature(feature) {
   ensureFeatureState(feature);
   if (saving.value) return;
   const gravityValue = Number(getFeatureGravity(feature));
-  const reversibilityValue = getFeatureReversibility(feature);
-  const justification = gravityValue === DEFAULT_GRAVITY ? DEFAULT_WEIGHT_JUSTIFICATION : String(getFeatureJustification(feature) || "");
+  const userText = String(getFeatureJustification(feature)).trim();
+  
+  // Se gravity è 1 e non hai scritto niente, invia la frase di default dietro le quinte
+  const justification = (gravityValue <= 1 && userText.length === 0) ? DEFAULT_WEIGHT_JUSTIFICATION : userText;
+  
   if (!isFeatureValid(feature)) { saveError.value = `Justification required.`; return; }
 
   saving.value = true; saveError.value = ""; saveOk.value = false;
@@ -95,7 +100,6 @@ async function saveFeature(feature) {
     });
     
     payload.gravity = gravityValue;
-    payload.reversibility = reversibilityValue;
 
     const resp = await fetch(`${API_HOST}/results/save_weights`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
     if (!resp.ok) throw new Error("Failed to save feature");
@@ -115,14 +119,19 @@ async function saveMissingFeaturesWithDefaultWeight() {
         feature, metricObj: props.metricObj, weight: DEFAULT_GRAVITY, justification: DEFAULT_WEIGHT_JUSTIFICATION, formatLabel: prettifyLabel, formatValue: formatAny,
       });
       payload.gravity = DEFAULT_GRAVITY;
-      payload.reversibility = false;
       await fetch(`${API_HOST}/results/save_weights`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-      featureGravity.value[feature] = DEFAULT_GRAVITY; featureJustifications.value[feature] = DEFAULT_WEIGHT_JUSTIFICATION; savedFeatures.value[feature] = true;
+      featureGravity.value[feature] = DEFAULT_GRAVITY; featureJustifications.value[feature] = ""; savedFeatures.value[feature] = true;
     }
   } catch (e) { console.error(e); } finally { saving.value = false; }
 }
 
-async function goBackSafely() { await saveMissingFeaturesWithDefaultWeight(); emit("go-back-safe"); }
+async function goBackSafely() { 
+  if (activeFeatureTab.value && !isFeatureSaved(activeFeatureTab.value) && isFeatureValid(activeFeatureTab.value)) {
+    await saveFeature(activeFeatureTab.value);
+  }
+  await saveMissingFeaturesWithDefaultWeight(); 
+  emit("go-back-safe"); 
+}
 defineExpose({ goBackSafely });
 
 const featureKeys = computed(() => {
@@ -177,13 +186,13 @@ function getSummaryTitle(featureKey) { const key = getSummaryKeyForFeature(featu
 function getConditionsFirstColTitle(feature) { const key = getConditionsKey(feature); return key ? prettifyLabel(key) : "Conditions"; }
 function getConditionsTableTitle(feature) { const key = getConditionsKey(feature); return key ? `${prettifyLabel(key)} Table` : "Conditions Table"; }
 
-// FIX: Eliminata la chiamata fuorviante e duplicata verso l'API. Usa i dati del genitore.
 onMounted(() => {
   loadResultSchemas();
   featureKeys.value.forEach(ensureFeatureState);
   if (featureKeys.value.length > 0) activeFeatureTab.value = featureKeys.value[0];
 });
 </script>
+
 <template>
   <div class="result-layout">
     
@@ -211,40 +220,37 @@ onMounted(() => {
             </div>
 
             <div class="slider-container">
-              <div class="slider-labels-top">
-                <span>Gravity</span>
-                <span class="weight-display">{{ gravityLabels[getFeatureGravity(activeFeatureTab)] }}</span>
-              </div>
-              
-              <input 
-                type="range" min="0" max="4" step="1" 
-                :value="getFeatureGravity(activeFeatureTab)" 
-                @input="setFeatureGravity(activeFeatureTab, $event.target.value)" 
-                class="premium-slider" 
-              />
-              
-              <div class="ticks-labels">
-                <div class="tick-item"><span>None</span></div>
-                <div class="tick-item"><span>Low</span></div>
-                <div class="tick-item"><span>Medium</span></div>
-                <div class="tick-item"><span>High</span></div>
-                <div class="tick-item"><span>Very High</span></div>
-              </div>
-            </div>
+  <div class="slider-labels-top">
+    <span>Gravity</span>
+    <span class="weight-display">
+      {{ Number(getFeatureGravity(activeFeatureTab)).toFixed(2) }} - {{ getGravityLabel(getFeatureGravity(activeFeatureTab)) }}
+    </span>
+  </div>
+  
+  <input 
+    type="range" min="1" max="5" step="0.01" 
+    :value="getFeatureGravity(activeFeatureTab)" 
+    @input="setFeatureGravity(activeFeatureTab, $event.target.value)" 
+    class="premium-slider" 
+  />
+  
+  <div class="ticks-labels">
+    <div class="tick-item"><span>Low</span></div>
+    <div class="tick-item"><span>Low-Med</span></div>
+    <div class="tick-item"><span>Medium</span></div>
+    <div class="tick-item"><span>Med-High</span></div>
+    <div class="tick-item"><span>High</span></div>
+  </div>
+</div>
 
-
-            <div class="justification-area" :class="{ 'is-active': featureNeedsJustification(activeFeatureTab) }">
-              <div v-if="featureNeedsJustification(activeFeatureTab)">
-                <div class="just-header">
-                  <label>Justification</label>
-                  <span v-if="!isFeatureValid(activeFeatureTab)" class="req-badge">Req. (min {{ MIN_JUST_LENGTH }} chars)</span>
-                  <span v-else class="ok-badge">Valid ✓</span>
-                </div>
-                <textarea :value="getFeatureJustification(activeFeatureTab)" @input="setFeatureJustification(activeFeatureTab, $event.target.value)" class="modern-textarea" rows="2" placeholder="Explain the impact..."></textarea>
+            <div class="justification-area is-active">
+              <div class="just-header">
+                <label>Justification</label>
+                <span v-if="!isFeatureValid(activeFeatureTab)" class="req-badge">Req. (min {{ MIN_JUST_LENGTH }} chars)</span>
+                <span v-else-if="!featureNeedsJustification(activeFeatureTab) && getFeatureJustification(activeFeatureTab).trim().length === 0" class="optional-badge">Optional</span>
+                <span v-else class="ok-badge">Valid ✓</span>
               </div>
-              <div v-else class="just-placeholder">
-                <p>Gravity is None. No justification needed.</p>
-              </div>
+              <textarea :value="getFeatureJustification(activeFeatureTab)" @input="setFeatureJustification(activeFeatureTab, $event.target.value)" class="modern-textarea" rows="2" placeholder="Explain the impact..."></textarea>
             </div>
 
             <div class="action-row">
@@ -266,9 +272,7 @@ onMounted(() => {
           </button>
 
           <div v-show="showHeavyTables">
-            
             <div class="data-cards-grid">
-              
               <div class="data-card" v-if="getContextSummaryRows(activeFeatureTab).length">
                 <h3>Context</h3>
                 <div class="keyval-list">
@@ -287,7 +291,6 @@ onMounted(() => {
                   </div>
                 </div>
               </div>
-
             </div>
 
             <div class="table-card" v-if="getConditionsRows(activeFeatureTab).length">
@@ -324,7 +327,6 @@ onMounted(() => {
 @media (max-width: 900px) { .nested-split { grid-template-columns: 1fr; } }
 .section-label { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 1px; font-weight: 600; color: #888; margin: 0 0 1rem 0; border-bottom: 1px solid #e5e5e5; padding-bottom: 0.5rem; }
 
-/* Sidebar */
 .tabs-sidebar { position: sticky; top: 2rem; }
 .tabs-title { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 1px; font-weight: 700; color: #555; margin-bottom: 1rem; }
 .tabs-list { display: flex; flex-direction: column; gap: 0.5rem; }
@@ -335,12 +337,10 @@ onMounted(() => {
 .status-dot.saved { background: #10b981; }
 .status-dot.pending { background: #f59e0b; }
 
-/* Pannello Executive */
 .executive-panel { background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 2.5rem; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); margin-bottom: 30px; }
 .weight-header { margin-bottom: 2rem; border-bottom: 1px solid #e2e8f0; padding-bottom: 15px; }
 .gravity-label { font-size: 14px; font-weight: 700; color: #1e293b; text-transform: uppercase; letter-spacing: 1px; font-family: 'JetBrains Mono', monospace; }
 
-/* Slider Modifiche */
 .slider-container { margin-bottom: 35px; }
 .slider-labels-top { display: flex; justify-content: space-between; margin-bottom: 12px; font-family: 'JetBrains Mono', monospace; font-size: 12px; font-weight: 700; text-transform: uppercase; color: #64748b; }
 .weight-display { color: #1243e3; }
@@ -352,24 +352,15 @@ onMounted(() => {
 .tick-item:last-child { text-align: right; }
 .tick-item span { font-family: 'JetBrains Mono', monospace; font-size: 10px; text-transform: uppercase; color: #64748b; font-weight: 700; }
 
-/* Reversibility */
-.reversibility-toggle { display: flex; align-items: center; gap: 12px; cursor: pointer; margin-bottom: 25px; }
-.reversibility-toggle input { display: none; }
-.checkbox-box { width: 24px; height: 24px; border: 2px solid #cbd5e1; display: inline-block; position: relative; transition: 0.2s; border-radius: 4px; }
-.reversibility-toggle input:checked ~ .checkbox-box { background-color:  #1243e3; border-color:  #1243e3; }
-.reversibility-toggle input:checked ~ .checkbox-box:after { content: ""; position: absolute; left: 7px; top: 3px; width: 5px; height: 11px; border: solid white; border-width: 0 2px 2px 0; transform: rotate(45deg); }
-.checkbox-text { font-family: 'Inter', sans-serif; font-size: 0.95rem; font-weight: 600; color: #1e293b; }
-
-/* Giustificazione e Bottoni */
 .justification-area { background: #f8fafc; border: 1px solid #e5e5e5; border-radius: 8px; padding: 1.2rem; transition: 0.3s; margin-bottom: 1.5rem; }
 .justification-area.is-active { border-color: #cbd5e1; border-left: 4px solid  #1243e3; }
 .just-header { display: flex; justify-content: space-between; margin-bottom: 0.8rem; }
 .just-header label { font-size: 0.9rem; font-weight: 700; }
 .req-badge { font-size: 0.75rem; font-weight: 700; color: #e11d48; background: #fff1f2; padding: 2px 6px; border-radius: 4px; }
 .ok-badge { font-size: 0.75rem; font-weight: 700; color: #16a34a; background: #f0fdf4; padding: 2px 6px; border-radius: 4px; }
+.optional-badge { font-size: 0.75rem; font-weight: 700; color: #64748b; background: #f1f5f9; padding: 2px 6px; border-radius: 4px; }
 .modern-textarea { width: 100%; padding: 0.8rem; border: 1px solid #e5e5e5; border-radius: 6px; font-family: 'Inter', sans-serif; resize: vertical; box-sizing: border-box; }
 .modern-textarea:focus { outline: none; border-color:  #1243e3; }
-.just-placeholder p { margin: 0; font-size: 0.9rem; color: #888; text-align: center; font-style: italic; }
 .action-row { display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #e5e5e5; padding-top: 1.5rem; }
 .save-status { font-size: 0.9rem; font-weight: 600; color: #f59e0b; }
 .save-status.is-saved { color: #10b981; }
@@ -377,7 +368,6 @@ onMounted(() => {
 .btn-primary:hover:not(:disabled) { background: #2563eb; }
 .btn-primary:disabled { background: #e2e8f0; color: #94a3b8; cursor: not-allowed; }
 
-/* Dati Tabelle */
 .toggle-heavy-btn { width: 100%; background: #f1f5f9; color:  #1243e3; border: 1px dashed #cbd5e1; padding: 15px; font-family: 'JetBrains Mono', monospace; font-size: 11px; font-weight: 700; text-transform: uppercase; cursor: pointer; border-radius: 8px; transition: 0.2s; margin-bottom: 20px;}
 .toggle-heavy-btn:hover { background: #e2e8f0; }
 .data-cards-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem; margin-bottom: 1.5rem; }

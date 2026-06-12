@@ -39,11 +39,19 @@ function formatAny(v) {
   return String(v);
 }
 
-const featureKeys = computed(() =>
-  props.metricObj && typeof props.metricObj === "object"
-    ? Object.keys(props.metricObj).filter((k) => k !== "__combined__" && k !== "(global)" && k !== "final_score" && k !== "gravity" && k !== "reversibility")
-    : []
-);
+// FIX: Escludiamo i dizionari di sistema (context_report, summary_report) 
+// per capire se è davvero una metrica suddivisa o una globale.
+const featureKeys = computed(() => {
+  const o = props.metricObj;
+  if (!isPlainObject(o)) return [];
+  const ignoreKeys = ["context_report", "summary_report", "disparity_summary", "full_results"];
+  return Object.keys(o).filter(k => 
+    !ignoreKeys.includes(k) && 
+    k !== "__combined__" && 
+    k !== "(global)" && 
+    isPlainObject(o[k])
+  );
+});
 
 const selectedFeature = ref("");
 watch(featureKeys, (keys) => {
@@ -52,29 +60,45 @@ watch(featureKeys, (keys) => {
   }, { immediate: true }
 );
 
+// FIX: Ora sa riconoscere che k_anonymity e l_diversity sono globali
 const featureObj = computed(() => {
   const o = props.metricObj;
   if (!isPlainObject(o)) return null;
-
-  const hasNestedObject = Object.values(o).some(isPlainObject);
-  if (!hasNestedObject) return o;
-
   if (isPlainObject(o["(global)"])) return o["(global)"];
+  
+  if (featureKeys.value.length === 0) return o; // Se non ha tab reali, mostra la metrica intera!
+
   return selectedFeature.value ? o[selectedFeature.value] ?? null : null;
 });
 
 const summaryRows = computed(() => {
-  const o = featureObj.value;
+  // In CardMap.vue è "cardRecord.value", in RecordWithTableView è "featureObj.value"
+  // Adattalo a seconda del file in cui ti trovi, ti lascio qui la logica universale:
+  const o = (typeof featureObj !== 'undefined') ? featureObj.value : cardRecord.value;
   if (!isPlainObject(o)) return [];
   const rows = [];
+  
+  // FIX: Abbiamo aggiunto "justification", "full_results" e "metric" tra i campi da nascondere.
+  // Abbiamo INVECE RIMOSSO "message", così la T-Closeness potrà mostrare la sua frase correttamente!
+  const skipKeys = [
+    "metric", "final_score", "gravity", "reversibility", "user_weight", 
+    "user_justification", "justification", "gravity_report", "user_weight_report", 
+    "user_justification_report", "reversibility_report", "total_score_report", 
+    "justification_report", "metric_description_report", "metric_right_report", 
+    "right_report", "metric_report", "group_report", "schema_type_report", 
+    "status", "full_results"
+  ];
+  
   for (const [k, v] of Object.entries(o)) {
-    if (isListOfDicts(v)) continue; 
-    if (k === "final_score" || k === "gravity" || k === "reversibility") continue; 
+    if (isPlainObject(v) || isListOfDicts(v)) continue; 
+    if (skipKeys.includes(k)) continue; 
     
     const scalar = isScalar(v);
-    const smallArray = Array.isArray(v) && v.length <= 50 && v.every((x) => ["string", "number", "boolean"].includes(typeof x));
+    const smallArray = Array.isArray(v) && v.length <= 80 && v.every((x) => ["string", "number", "boolean"].includes(typeof x));
+    
     if (scalar || smallArray) rows.push({ key: k, value: v });
   }
+  
   rows.sort((a, b) => a.key.localeCompare(b.key));
   return rows;
 });
@@ -94,54 +118,52 @@ const tableBlocks = computed(() => {
   return blocks;
 });
 
-// --- STATI EXECUTIVE E RECUPERO DEI SALVATAGGI ---
+// --- STATI EXECUTIVE ---
 const MIN_JUST_LENGTH = 10;
-const DEFAULT_GRAVITY = 0;
+const DEFAULT_GRAVITY = 1;
 const metricGravity = ref(DEFAULT_GRAVITY);
-const metricReversibility = ref(false);
 const metricJustification = ref("");
 
-// FIX: Quando il componente viene caricato, leggiamo i dati veri invece di azzerare!
 onMounted(() => {
   let savedData = props.metricObj || {};
-  // Cerchiamo anche dentro (global) se il backend li ha nidificati lì
   if (savedData["(global)"]) {
     savedData = { ...savedData, ...savedData["(global)"] };
   }
 
-  const savedGrav = savedData.gravity ?? savedData.gravity_report ?? savedData.user_weight ?? savedData.user_weight_report;
+  const savedGrav = savedData.user_weight ?? savedData.user_weight_report ?? savedData.gravity ?? savedData.gravity_report;
   if (savedGrav !== undefined) metricGravity.value = Number(savedGrav);
 
-  const savedRev = savedData.reversibility ?? savedData.reversibility_report;
-  if (savedRev !== undefined) metricReversibility.value = !!savedRev;
-
-  const savedJust = savedData.user_justification ?? savedData.user_justification_report ?? savedData.justification;
+  let savedJust = savedData.user_justification ?? savedData.user_justification_report ?? savedData.justification;
+  if (savedJust === DEFAULT_WEIGHT_JUSTIFICATION) savedJust = "";
   if (savedJust !== undefined) metricJustification.value = String(savedJust);
 });
 
-const gravityLabels = {
-  0: "0 - None",
-  1: "1 - Low",
-  2: "2 - Medium",
-  3: "3 - High",
-  4: "4 - Very High"
-};
+function getGravityLabel(val) {
+  const v = Number(val);
+  if (v < 1.5) return "Low";
+  if (v < 2.5) return "Low-Medium";
+  if (v < 3.5) return "Medium";
+  if (v < 4.5) return "Medium-High";
+  return "High";
+}
+function metricNeedsJustification() { return Number(metricGravity.value) > 1; }
 
-function isChangedMetric() { return Number(metricGravity.value) > 0; }
 const missingJustifications = computed(() => {
-  if (!isChangedMetric()) return [];
   const txt = String(metricJustification.value || "").trim();
-  return txt.length < MIN_JUST_LENGTH ? ["(global)"] : [];
+  if (metricNeedsJustification() && txt.length < MIN_JUST_LENGTH) return ["(global)"];
+  return [];
 });
 
 const canSave = computed(() => {
-  if (!isChangedMetric()) return true;
   return missingJustifications.value.length === 0;
 });
 
 function buildSavePayload() {
   const contextReport = rowsToDict(summaryRows.value);
-  const finalGravity = isChangedMetric() ? Number(metricGravity.value) : DEFAULT_GRAVITY;
+  const finalGravity = Number(metricGravity.value);
+  const userText = String(metricJustification.value || "").trim();
+  
+  const justification = (finalGravity <= 1 && userText.length === 0) ? DEFAULT_WEIGHT_JUSTIFICATION : userText;
   
   const payload = buildRecordWithTableSavePayload({
     runId: props.runId,
@@ -149,12 +171,10 @@ function buildSavePayload() {
     metric: props.metricKey,
     metricObj: contextReport,
     userWeight: finalGravity, 
-    userJustification: finalGravity === DEFAULT_GRAVITY ? DEFAULT_WEIGHT_JUSTIFICATION : String(metricJustification.value || "").trim(),
+    userJustification: justification,
   });
 
   payload.gravity = finalGravity;
-  payload.reversibility = metricReversibility.value;
-
   return payload;
 }
 
@@ -174,16 +194,13 @@ async function onSave() {
   try {
     await postSaveMetric();
     saveOk.value = true;
-    router.back();
   } catch (e) { saveError.value = e?.message || String(e); } finally { saving.value = false; }
 }
 
 const emit = defineEmits(["go-back-safe"]);
 async function goBackSafely() {
-  if (isChangedMetric() && canSave.value) {
+  if (canSave.value) {
     await onSave();
-  } else if (!isChangedMetric()) {
-    try { await postSaveMetric(); } catch(e){}
   }
   emit("go-back-safe");
 }
@@ -192,9 +209,7 @@ defineExpose({ goBackSafely });
 
 <template>
   <div class="result-layout">
-    
     <div class="content-split">
-      
       <div class="results-column">
         
         <div v-if="summaryRows.length" class="executive-panel" style="margin-bottom: 20px;">
@@ -232,7 +247,6 @@ defineExpose({ goBackSafely });
       </div>
 
       <div class="context-column">
-        
         <div class="weight-card executive-panel">
           
           <div class="weight-header" style="margin-bottom: 20px;">
@@ -242,54 +256,50 @@ defineExpose({ goBackSafely });
           <div class="slider-container">
             <div class="slider-labels-top">
               <span>Gravity</span>
-              <span class="weight-display">{{ gravityLabels[metricGravity] }}</span>
+              <span class="weight-display">
+                {{ Number(metricGravity).toFixed(2) }} - {{ getGravityLabel(metricGravity) }}
+              </span>
             </div>
             
             <input 
-              type="range" min="0" max="4" step="1" 
-              v-model.number="metricGravity" 
-              class="premium-slider"
+              type="range" min="1" max="5" step="0.01" 
+              v-model="metricGravity" 
+              class="premium-slider" 
             />
             
             <div class="ticks-labels">
-              <div class="tick-item"><span>None</span></div>
               <div class="tick-item"><span>Low</span></div>
-              <div class="tick-item"><span>Med</span></div>
+              <div class="tick-item"><span>Low-Med</span></div>
+              <div class="tick-item"><span>Medium</span></div>
+              <div class="tick-item"><span>Med-High</span></div>
               <div class="tick-item"><span>High</span></div>
-              <div class="tick-item"><span>Very High</span></div>
             </div>
           </div>
-
-          <div class="justification-area" :class="{ 'is-active': isChangedMetric() }">
-            <div v-if="isChangedMetric()">
-              <div class="just-header">
-                <label>Justification</label>
-                <span v-if="missingJustifications.length" class="req-badge">Req. (min {{ MIN_JUST_LENGTH }} chars)</span>
-                <span v-else class="ok-badge">Valid ✓</span>
-              </div>
-              <textarea 
-                v-model="metricJustification" 
-                class="modern-textarea" 
-                rows="3" 
-                placeholder="Explain the impact..."
-              ></textarea>
+          <div class="justification-area is-active">
+            <div class="just-header">
+              <label>Justification</label>
+              <span v-if="missingJustifications.length" class="req-badge">Req. (min {{ MIN_JUST_LENGTH }} chars)</span>
+              <span v-else-if="!metricNeedsJustification() && metricJustification.trim().length === 0" class="optional-badge">Optional</span>
+              <span v-else class="ok-badge">Valid ✓</span>
             </div>
-            <div v-else class="just-placeholder">
-              <p>Gravity is None. No justification needed.</p>
-            </div>
+            <textarea 
+              v-model="metricJustification" 
+              class="modern-textarea" 
+              rows="3" 
+              placeholder="Explain the impact..."
+            ></textarea>
           </div>
 
           <div v-if="saveError" class="error-msg-box">{{ saveError }}</div>
 
           <div class="action-row">
-            <button class="btn-primary" :disabled="!canSave || saving" @click="onSave" style="width: 100%;">
+            <button class="btn-primary" :disabled="!canSave || saving" @click="goBackSafely" style="width: 100%;">
               {{ saving ? "Saving..." : "Save & Return" }}
             </button>
           </div>
 
         </div>
       </div>
-
     </div>
   </div>
 </template>
@@ -300,17 +310,14 @@ defineExpose({ goBackSafely });
 @media (max-width: 900px) { .content-split { grid-template-columns: 1fr; } }
 .section-label { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 1px; font-weight: 600; color: #888; margin: 0 0 1rem 0; border-bottom: 1px solid #e2e8f0; padding-bottom: 10px; }
 
-/* EXECUTIVE PANEL STYLES */
 .executive-panel { background: #fff; border: 1px solid #e2e8f0; border-radius: 8px; padding: 2rem; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05); }
 
-/* Left Column - Data */
 .metrics-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 1.5rem; margin-top: 15px;}
 .data-item { display: flex; flex-direction: column; gap: 0.5rem; padding-bottom: 1rem; border-bottom: 1px solid #f0f0f0; }
 .data-key { font-size: 0.85rem; font-weight: 600; color: #64748b; text-transform: uppercase; }
 .data-value { font-size: 1.8rem; font-weight: 700; color: #1e293b; line-height: 1; }
 .mono-text { font-family: 'JetBrains Mono', monospace; }
 
-/* Tables */
 .table-responsive { overflow-x: auto; }
 .modern-table { width: 100%; border-collapse: collapse; text-align: left; font-size: 0.9rem; }
 .modern-table th { background: #f8fafc; padding: 12px; font-weight: 600; color: #475569; border-bottom: 2px solid #e2e8f0; white-space: nowrap; font-family: 'JetBrains Mono', monospace; font-size: 11px; text-transform: uppercase; }
@@ -318,7 +325,6 @@ defineExpose({ goBackSafely });
 .empty-state { color: #666; }
 .raw-data { background: #f8fafc; padding: 1rem; border-radius: 8px; font-size: 0.85rem; overflow-x: auto; border: 1px solid #e5e5e5; }
 
-/* Right Column - Impact */
 .weight-card { position: sticky; top: 20px; }
 .gravity-label { font-size: 14px; font-weight: 700; color: #1e293b; text-transform: uppercase; letter-spacing: 1px; font-family: 'JetBrains Mono', monospace; }
 
@@ -333,19 +339,13 @@ defineExpose({ goBackSafely });
 .tick-item:last-child { text-align: right; }
 .tick-item span { font-family: 'JetBrains Mono', monospace; font-size: 10px; text-transform: uppercase; color: #64748b; font-weight: 700; }
 
-.reversibility-toggle { display: flex; align-items: center; gap: 12px; cursor: pointer; margin-bottom: 25px; }
-.reversibility-toggle input { display: none; }
-.checkbox-box { width: 24px; height: 24px; border: 2px solid #cbd5e1; display: inline-block; position: relative; transition: 0.2s; border-radius: 4px; }
-.reversibility-toggle input:checked ~ .checkbox-box { background-color: #1A365D; border-color: #1A365D; }
-.reversibility-toggle input:checked ~ .checkbox-box:after { content: ""; position: absolute; left: 7px; top: 3px; width: 5px; height: 11px; border: solid white; border-width: 0 2px 2px 0; transform: rotate(45deg); }
-.checkbox-text { font-family: 'Inter', sans-serif; font-size: 0.95rem; font-weight: 600; color: #1e293b; }
-
 .justification-area { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 1.2rem; transition: 0.3s; margin-bottom: 1.5rem; }
 .justification-area.is-active { border-color: #cbd5e1; border-left: 4px solid #1A365D; }
 .just-header { display: flex; justify-content: space-between; margin-bottom: 0.8rem; }
 .just-header label { font-size: 0.9rem; font-weight: 700; }
 .req-badge { font-size: 0.75rem; font-weight: 700; color: #e11d48; background: #fff1f2; padding: 2px 6px; border-radius: 4px; }
 .ok-badge { font-size: 0.75rem; font-weight: 700; color: #16a34a; background: #f0fdf4; padding: 2px 6px; border-radius: 4px; }
+.optional-badge { font-size: 0.75rem; font-weight: 700; color: #64748b; background: #f1f5f9; padding: 2px 6px; border-radius: 4px; }
 .modern-textarea { width: 100%; padding: 0.8rem; border: 1px solid #e2e8f0; border-radius: 6px; font-family: 'Inter', sans-serif; resize: vertical; box-sizing: border-box; }
 .modern-textarea:focus { outline: none; border-color: #1A365D; }
 .just-placeholder p { margin: 0; font-size: 0.9rem; color: #888; text-align: center; font-style: italic; }

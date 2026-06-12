@@ -206,7 +206,7 @@ async function onSave() {
         <h2 class="section-label">Contextual Impact</h2>
         
         <div class="weight-card executive-panel">
-          <p class="help-text">Standard gravity is None (0). If a higher gravity is selected, a textual justification will be required.</p>
+          <p class="help-text">Standard gravity is low (1). If a higher gravity is selected, a textual justification will be required.</p>
 
           <div v-if="!anyChanged" class="just-placeholder">
             <div class="icon-circle">✓</div>
