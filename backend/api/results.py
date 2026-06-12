@@ -141,7 +141,8 @@ def get_result_schemas(run_id: Optional[str] = Query(None)):
     return json.loads(schemas_path.read_text(encoding="utf-8"))
 
 class WeightsSavePayload(BaseModel):
-    run_id: str 
+    run_id: str
+    session_id:str 
     group: Optional[str] = None 
     metric: str 
     user_weight: Optional[float] = None
@@ -169,7 +170,7 @@ def save_weights(payload: WeightsSavePayload):
     metric_right = metric_meta.get("right")
 
     source_path = RESULTS_DIR / f"{run_id}.json"
-    report_path = RESULTS_DIR / f"{run_id}_report.json"
+    report_path = RESULTS_DIR / f"{payload.run_id}_report_{payload.session_id}.json"
 
     if not source_path.exists():
         raise HTTPException(status_code=404, detail=f"Results file not found")
@@ -178,7 +179,7 @@ def save_weights(payload: WeightsSavePayload):
         report_raw = json.loads(report_path.read_text(encoding="utf-8"))
     else:
         report_raw = json.loads(source_path.read_text(encoding="utf-8"))
-        # PRIMA MODIFICA ASSOLUTA: Puliamo i fantasmi del vecchio file!
+        #funzione di pulizia
         report_raw = strip_report_fields(report_raw)
 
     report_results = report_raw.get("results") if isinstance(report_raw, dict) and "results" in report_raw else report_raw
@@ -264,14 +265,30 @@ def save_domain_config(payload: DomainConfigPayload):
     return {"status": "success"}
 
 
+from fastapi import Query, HTTPException
 
 @router.get("/results/{run_id}_report")
-def get_report_json(run_id: str):
-    report_path = RESULTS_DIR / f"{run_id}_report.json"
-    if not report_path.exists(): 
-        raise HTTPException(status_code=404, detail="Report non trovato")
+def get_report_json(run_id: str, session_id: str = Query(None)):
+    # 1. Determina quale file cercare (con o senza session_id)
+    if session_id:
+        report_path = RESULTS_DIR / f"{run_id}_report_{session_id}.json"
+    else:
+        report_path = RESULTS_DIR / f"{run_id}_report.json"
 
-    report_data = json.loads(report_path.read_text(encoding="utf-8"))
+    # 2. SE IL REPORT NON ESISTE ANCORA (Nuova sessione o file cancellato)
+    if not report_path.exists(): 
+        # Cerca il file base originale!
+        base_path = RESULTS_DIR / f"{run_id}.json"
+        if not base_path.exists():
+            raise HTTPException(status_code=404, detail=f"File base {run_id}.json non trovato!")
+        
+        # Legge il file base e lo "pulisce" al volo usando la funzione che abbiamo sistemato prima
+        report_data = json.loads(base_path.read_text(encoding="utf-8"))
+        report_data = strip_report_fields(report_data)
+    else:
+        # Se il report della sessione esiste, legge quello
+        report_data = json.loads(report_path.read_text(encoding="utf-8"))
+
     results = report_data.get("results", report_data)
 
     privacy_list = ["anonymity_set_size", "k_anonymity", "l_diversity", "mutual_information_metric", "t_closeness"]
@@ -285,7 +302,7 @@ def get_report_json(run_id: str):
         if not node.get("metric_right_report"):
             node["metric_right_report"] = "Privacy" if metric_name in privacy_list else "Non Discrimination" if metric_name in fairness_list else "Other"
 
-        # 2. Normalizzazione Reversibilità (True/False)
+        # 2. Normalizzazione Reversibilità
         rev_val = node.get("reversibility_report")
         is_rev = False
         if isinstance(rev_val, bool): is_rev = rev_val
@@ -293,14 +310,13 @@ def get_report_json(run_id: str):
         node["reversibility"] = is_rev
         node["reversibility_report"] = is_rev
 
-        # 3. IL CALCOLO CHE MANCAVA
+        # 3. Calcolo rischio
         likelihood = node.get("final_score")
         if likelihood is None and "context_report" in node:
             likelihood = node["context_report"].get("final_score")
         
         gravity = node.get("gravity_report", 0)
         
-        # Calcoliamo il rischio qui, sovrascrivendo quello vecchio a 0
         if likelihood is not None:
             node["total_score_report"] = calculate_fria_risk(likelihood, gravity, is_rev)
 
@@ -308,7 +324,6 @@ def get_report_json(run_id: str):
         for metric_key, metric_data in results.items():
             if not isinstance(metric_data, dict): continue
             
-            # Controlla se è nidificato (es. ha sottocategorie come gender/age)
             is_nested = False
             for sub_key, sub_val in metric_data.items():
                 if isinstance(sub_val, dict) and ("metric" in sub_val or "status" in sub_val):
@@ -318,7 +333,7 @@ def get_report_json(run_id: str):
             if not is_nested:
                 fix_node(metric_data, metric_key)
             else:
-                fix_node(metric_data, metric_key) # fix anche al padre per coerenza
+                fix_node(metric_data, metric_key)
 
     return clean_nans(report_data)
 
@@ -499,13 +514,16 @@ def get_report_json(run_id: str):
 '''
 class GeneratePDFRequest(BaseModel):
     run_id: str
+    session_id: str
 
 @router.post("/results/generate_pdf")
 def generate_pdf(req: GeneratePDFRequest):
     run_id = (req.run_id or "").strip()
+    session_id = (req.session_id or "").strip()
     if not run_id: raise HTTPException(status_code=400)
     out_dir = Path("backend/storage/reports")
-    out_path = out_dir / f"{run_id}_report.pdf"
+    out_dir.mkdir(parents=True, exist_ok=True)
+    out_path = out_dir / f"{run_id}_report_{session_id}.pdf"
     try:
         render_report_to_pdf(run_id=run_id, frontend_base_url=os.getenv("FRONTEND_BASE_URL", "http://localhost:5173"), out_path=out_path)
     except Exception as e:

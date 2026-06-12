@@ -1,6 +1,6 @@
 <script setup>
 import { API_HOST } from "../utils/config";
-import { onMounted, ref, computed } from "vue";
+import { onMounted, onUnmounted, ref, computed } from "vue";
 import { useRouter, useRoute } from "vue-router";
 import ProcessStepper from "../components/ProcessStepper.vue";
 
@@ -11,15 +11,16 @@ import {
   buildScalarMapSavePayload,
   buildRecordWithTableSavePayload,
   buildCardMapSavePayload,
+  getSessionId
 } from "../utils/report_builder_helper";
 
 const router = useRouter();
-const route = useRoute(); 
+const route = useRoute();
 
 const loadingMetrics = ref(true);
 const metricsError = ref("");
 
-const latestResults = ref(null); 
+const latestResults = ref(null);
 const resultSchemas = ref({});
 const existingReport = ref({});
 
@@ -30,7 +31,6 @@ const pdfError = ref("");
 const expandedGroup = ref("");
 const domainReversibility = ref({});
 
-// Usiamo 1 come valore base per la nuova scala 1-5
 const BASE_GRAVITY = 1;
 
 function toggleGroup(groupName) {
@@ -49,6 +49,7 @@ async function saveDomainReversibility(groupName) {
     const payload = {
       run_id: runId.value,
       domain: groupName,
+      session_id: getSessionId(),
       reversibility: isReversible
     };
     await fetch(`${API_HOST}/results/save_domain_config`, {
@@ -67,7 +68,7 @@ async function resetRun() {
     const res = await fetch(`${API_HOST}/results/purge_run`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ run_id: runId.value })
+      body: JSON.stringify({ run_id: runId.value, session_id: getSessionId() })
     });
     if (res.ok) { window.location.reload(); }
   } catch (e) {
@@ -112,6 +113,36 @@ const groupedMetrics = computed(() => {
 
 const groupNames = computed(() => Object.keys(groupedMetrics.value).sort());
 
+// ─── Sincronizza domainReversibility dal report salvato ──────────────────────
+function syncDomainReversibility() {
+  const savedDomainConfigs = existingReport.value?.domain_configs || {};
+  groupNames.value.forEach(group => {
+    if (savedDomainConfigs[group] !== undefined) {
+      domainReversibility.value[group] = savedDomainConfigs[group].reversibility;
+    }
+    // se non c'è nel report non tocchiamo il valore in memoria
+    // (l'utente potrebbe averlo appena cliccato senza ancora salvare)
+  });
+}
+
+// ─── Ricarica solo existingReport + risincronizza reversibility, senza spinner 
+async function refreshExistingReport() {
+  if (!runId.value) return;
+  try {
+    const sid = getSessionId();
+    const reportResp = await fetch(
+      `${API_HOST}/results/${runId.value}_report?session_id=${sid}&t=${Date.now()}`
+    );
+    if (reportResp.ok) {
+      existingReport.value = await reportResp.json();
+      syncDomainReversibility(); // ← aggiorna anche i checkbox
+    }
+  } catch {
+    // silenzioso
+  }
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 async function fetchData() {
   try {
     loadingMetrics.value = true;
@@ -119,21 +150,22 @@ async function fetchData() {
 
     runId.value = route.params.runId || "";
 
-    let fetchUrl = `${API_HOST}/results/values_to_display`;
-    if (runId.value) fetchUrl += `?run_id=${runId.value}`;
-    
+    const sid = getSessionId();
+
+    let fetchUrl = `${API_HOST}/results/values_to_display?run_id=${runId.value}&session_id=${sid}&t=${Date.now()}`;
+
     const results = await fetch(fetchUrl);
     if (!results.ok) throw new Error(await results.text());
     const valsData = await results.json();
 
     latestResults.value = valsData?.results?.results ? valsData.results : valsData;
-    
+
     const schemasResp = await fetch(`${API_HOST}/results/result_schemas?run_id=${encodeURIComponent(runId.value)}`);
     if (!schemasResp.ok) throw new Error(await schemasResp.text());
     resultSchemas.value = await schemasResp.json();
 
     try {
-      const reportResp = await fetch(`${API_HOST}/results/${runId.value}_report`);
+      const reportResp = await fetch(`${API_HOST}/results/${runId.value}_report?session_id=${sid}`);
       if (reportResp.ok) {
         existingReport.value = await reportResp.json();
       } else {
@@ -143,14 +175,8 @@ async function fetchData() {
       existingReport.value = {};
     }
 
-    const savedDomainConfigs = existingReport.value?.domain_configs || {};
-    groupNames.value.forEach(group => { 
-      if (savedDomainConfigs[group] !== undefined) {
-        domainReversibility.value[group] = savedDomainConfigs[group].reversibility;
-      } else {
-        domainReversibility.value[group] = false; 
-      }
-    });
+    groupNames.value.forEach(group => { domainReversibility.value[group] = false; });
+    syncDomainReversibility();
 
     if (groupNames.value.length > 0) {
       expandedGroup.value = expandedGroup.value || groupNames.value[0];
@@ -164,24 +190,23 @@ async function fetchData() {
 }
 
 function isMetricReviewed(metricKey) {
-    const report = getReportRoot();
-    const m = report[metricKey];
-    if (!m || typeof m !== "object") return false;
+  const report = getReportRoot();
+  const m = report[metricKey];
+  if (!m || typeof m !== "object") return false;
 
-    if (m.user_weight_report !== undefined || m.user_justification_report !== undefined) return true;
-    if (m["(global)"] && (m["(global)"].user_weight_report !== undefined || m["(global)"].user_justification_report !== undefined)) return true;
+  if (m.user_weight_report !== undefined || m.user_justification_report !== undefined) return true;
+  if (m["(global)"] && (m["(global)"].user_weight_report !== undefined || m["(global)"].user_justification_report !== undefined)) return true;
 
-    for (const key in m) {
-      if (m[key] && typeof m[key] === "object" && (m[key].user_weight_report !== undefined || m[key].user_justification_report !== undefined)) {
-        return true;
-      }
+  for (const key in m) {
+    if (m[key] && typeof m[key] === "object" && (m[key].user_weight_report !== undefined || m[key].user_justification_report !== undefined)) {
+      return true;
     }
-    return false;
+  }
+  return false;
 }
 
 function getReportRoot() { return existingReport.value?.results ?? existingReport.value ?? {}; }
 
-// Getters blindati per non sovrascrivere i pesi (Recuperano i tuoi 5 o impostano 1)
 function getSavedGlobalWeight(metric) { const m = getReportRoot()?.[metric]?.["(global)"]; return m?.user_weight_report ?? m?.gravity_report ?? BASE_GRAVITY; }
 function getSavedGlobalJustification(metric) { return getReportRoot()?.[metric]?.["(global)"]?.user_justification_report ?? DEFAULT_WEIGHT_JUSTIFICATION; }
 function getSavedMetricWeight(metric) { const m = getReportRoot()?.[metric]; return m?.user_weight_report ?? m?.gravity_report ?? BASE_GRAVITY; }
@@ -191,9 +216,8 @@ function getSavedFeatureJustification(metric, feature) { return getReportRoot()?
 
 async function buildReportPayloadWithDefaults() {
   const all = latestResults.value?.results ?? latestResults.value ?? {};
-  
+
   for (const [groupName, metrics] of Object.entries(groupedMetrics.value)) {
-    // 1. LEGGI LA REVERSIBILITÀ DALLA DASHBOARD
     const domainRev = !!domainReversibility.value[groupName];
 
     for (const metricEntry of metrics) {
@@ -204,15 +228,13 @@ async function buildReportPayloadWithDefaults() {
       const metricObj = all?.[metric];
       if (!metricObj || typeof metricObj !== "object") continue;
 
-      // 2. INIEZIONE FORZATA DELLA REVERSIBILITÀ
-      // Ora il codice non salta più le metriche già viste, ma le ri-salva tutte con i loro pesi corretti + la Reversibility
-      
       if (schemaType === "card_map") {
         const w = getSavedGlobalWeight(metric);
         const j = getSavedGlobalJustification(metric);
         const payload = buildCardMapSavePayload({ runId: runId.value, group: groupName, metric, schemaType, metricObj, userWeight: w, userJustification: j });
         payload.gravity = w;
-        payload.reversibility = domainRev; // <--- INIETTATO QUI
+        payload.reversibility = domainRev;
+        payload.session_id = getSessionId();
         await fetch(`${API_HOST}/results/save_weights`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
         continue;
       }
@@ -221,7 +243,8 @@ async function buildReportPayloadWithDefaults() {
         const j = getSavedMetricJustification(metric);
         const payload = buildRecordWithTableSavePayload({ runId: runId.value, group: groupName, metric, metricObj, userWeight: w, userJustification: j });
         payload.gravity = w;
-        payload.reversibility = domainRev; // <--- INIETTATO QUI
+        payload.reversibility = domainRev;
+        payload.session_id = getSessionId();
         await fetch(`${API_HOST}/results/save_weights`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
         continue;
       }
@@ -229,31 +252,33 @@ async function buildReportPayloadWithDefaults() {
         const rows = Object.entries(metricObj).map(([label, value]) => ({ label, value }));
         if (!rows.length) continue;
         const weightsByLabel = {}; const justificationsByLabel = {};
-        for (const row of rows) { 
-            weightsByLabel[row.label] = getSavedFeatureWeight(metric, row.label); 
-            justificationsByLabel[row.label] = getSavedFeatureJustification(metric, row.label); 
+        for (const row of rows) {
+          weightsByLabel[row.label] = getSavedFeatureWeight(metric, row.label);
+          justificationsByLabel[row.label] = getSavedFeatureJustification(metric, row.label);
         }
         const payload = buildScalarMapSavePayload({ runId: runId.value, group: groupName, metric, rows, weightsByLabel, justificationsByLabel });
         payload.reversibilityByLabel = {};
-        for (const row of rows) { payload.reversibilityByLabel[row.label] = domainRev; } // <--- INIETTATO QUI
+        for (const row of rows) { payload.reversibilityByLabel[row.label] = domainRev; }
+        payload.session_id = getSessionId();
         await fetch(`${API_HOST}/results/save_weights`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
         continue;
       }
-      
+
       const featureKeys = Object.keys(metricObj).filter((k) => k !== "(global)" && metricObj[k] && typeof metricObj[k] === "object");
       for (const feature of featureKeys) {
         let payload;
         const w = getSavedFeatureWeight(metric, feature);
         const j = getSavedFeatureJustification(metric, feature);
-        
+
         if (schemaType === "conditional_nested") {
           payload = buildConditionalNestedFeatureSavePayload({ runId: runId.value, group: groupName, metric, schemaType, feature, metricObj, weight: w, justification: j, formatLabel: prettify, formatValue: (v) => v });
         } else if (schemaType === "group_metric_map") {
           payload = buildGroupMapFeatureSavePayload({ runId: runId.value, metric, schemaType, feature, metricObj, weight: w, justification: j, formatLabel: prettify, formatValue: (v) => v });
         } else { continue; }
-        
+
         payload.gravity = w;
-        payload.reversibility = domainRev; // <--- INIETTATO QUI
+        payload.reversibility = domainRev;
+        payload.session_id = getSessionId();
         await fetch(`${API_HOST}/results/save_weights`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
       }
     }
@@ -261,18 +286,37 @@ async function buildReportPayloadWithDefaults() {
 }
 
 function openMetric(group, metricKey) {
-  router.push({ 
-    name: "MetricResults", 
+  router.push({
+    name: "MetricResults",
     params: { group, metric: metricKey },
-    query: { runId: runId.value } 
+    query: { runId: runId.value }
   });
 }
 
 function goBack() { router.back(); }
 
-onMounted(fetchData);
-</script>
+// ─── CICLO DI VITA ────────────────────────────────────────────────────────────
+// fetchData completo solo al mount iniziale.
+// refreshExistingReport (leggero) ogni volta che si torna su questa pagina
+// tramite visibilitychange (tab focus) o popstate (tasto back del browser).
+onMounted(() => {
+  fetchData();
+  document.addEventListener("visibilitychange", onVisibilityChange);
+  window.addEventListener("popstate", refreshExistingReport);
+});
 
+onUnmounted(() => {
+  document.removeEventListener("visibilitychange", onVisibilityChange);
+  window.removeEventListener("popstate", refreshExistingReport);
+});
+
+function onVisibilityChange() {
+  if (document.visibilityState === "visible") {
+    refreshExistingReport();
+  }
+}
+// ─────────────────────────────────────────────────────────────────────────────
+</script>
 <template>
   <div class="page-layout">
     <header class="top-nav">
@@ -290,7 +334,6 @@ onMounted(fetchData);
           <span class="step"><span class="num">2</span> Assign weights (1-5)</span>
           <span class="sep">→</span>
           <span class="step"><span class="num">3</span> Generate final PDF</span>
-          <button class="nav-btn ghost danger" @click="resetRun" title="Reset Session Data">Reset Session</button>
         </div>
 
         <div v-if="loadingMetrics" class="state-msg">Loading your dashboard...</div>

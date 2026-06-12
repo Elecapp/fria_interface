@@ -9,6 +9,7 @@ import {
   buildSummaryRows as sharedBuildSummaryRows,
   getFeatureObject as sharedGetFeatureObject,
   getSummaryKeyForFeature as sharedGetSummaryKeyForFeature,
+  getSessionId
 } from "../../utils/report_builder_helper";
 
 const route = useRoute();
@@ -91,11 +92,12 @@ async function saveFeature(feature) {
 
   try {
     const payload = buildGroupMapFeatureSavePayload({
-      runId: props.runId, group: group.value, metric: props.metricKey, schemaType: schemaTypeReport.value, 
+      runId: props.runId, session_id: getSessionId(), group: group.value, metric: props.metricKey, schemaType: schemaTypeReport.value, 
       feature, metricObj: props.metricObj, weight: gravityValue, justification, formatLabel: prettifyLabel, formatValue: formatAny,
     });
     
     payload.gravity = gravityValue;
+    payload.session_id = getSessionId();
 
     const resp = await fetch(`${API_HOST}/results/save_weights`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
     if (!resp.ok) throw new Error("Failed to save feature");

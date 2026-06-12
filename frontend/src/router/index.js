@@ -24,8 +24,8 @@ const router = createRouter({
     { path: "/rm", component: MetricsParameters },
     { path: "/rm2", component: RunModel },
     
-    // --- MODIFICA CRUCIALE QUI ---
-    // Abbiamo cambiato "/r" in "/dashboard/:runId" e aggiunto name: "Dashboard"
+   
+   
     { path: "/dashboard/:runId", name: "Dashboard", component: ReviewResults }, 
     
     { path: "/metric/:group/:metric", name: "MetricResults", component: MetricResults },

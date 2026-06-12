@@ -8,6 +8,7 @@ import ScalarMapView from "../components/metrics/ScalarMapView.vue";
 import GroupMetricMapView2 from "../components/metrics/GroupMetricMapView2.vue";
 import RecordWithTableView from "../components/metrics/RecordWithTableView.vue";
 import CardMap from "../components/metrics/CardMap.vue";
+import { getSessionId } from "../utils/report_builder_helper";
 
 const route = useRoute();
 const router = useRouter();
@@ -74,7 +75,9 @@ async function handleBack() {
             }
         }
     }
-    const APIHOST = `${API_HOST}/api`;
+    
+    const APIHOST = `${API_HOST}`;
+    payload.session_id = getSessionId();
     await fetch( APIHOST+"/results/save_weights", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -220,7 +223,8 @@ onMounted(async () => {
     if (route.query.runId) runId.value = String(route.query.runId);
 
     const t = new Date().getTime();
-    const res = await fetch(`${API_HOST}/results/values_to_display?run_id=${runId.value}&t=${t}`);
+    const sid = getSessionId();
+    const res = await fetch(`${API_HOST}/results/values_to_display?run_id=${runId.value}&session_id=${sid}`);
     if (!res.ok) throw new Error(await res.text());
     const data = await res.json();
 
@@ -232,9 +236,14 @@ onMounted(async () => {
     if (data?.schemas) {
       allSchemas.value = data.schemas;
     } else {
-      const sres = await fetch(`${API_HOST}/results/result_schemas?run_id=${runId.value}&t=${t}`);
-      if (sres.ok) allSchemas.value = await sres.json();
-      else allSchemas.value = {};
+      // ORA CHIEDE GLI SCHEMI CORRETTAMENTE!
+      const sres = await fetch(`${API_HOST}/results/result_schemas?run_id=${runId.value}`);
+      
+      if (sres.ok) {
+        allSchemas.value = await sres.json();
+      } else {
+        allSchemas.value = {};
+      }
     }
     if (!allResults.value?.[metricKey.value]) {
       error.value = `Metric "${metricKey.value}" not found in results.`;

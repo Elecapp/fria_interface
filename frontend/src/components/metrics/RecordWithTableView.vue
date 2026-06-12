@@ -8,6 +8,7 @@ import {
   isScalar,
   isPlainObject,
   buildRecordWithTableSavePayload,
+  getSessionId
 } from "../../utils/report_builder_helper";
 
 const router = useRouter();
@@ -167,6 +168,7 @@ function buildSavePayload() {
   
   const payload = buildRecordWithTableSavePayload({
     runId: props.runId,
+    session:id= getSessionId(),
     group: group.value,
     metric: props.metricKey,
     metricObj: contextReport,
@@ -175,6 +177,7 @@ function buildSavePayload() {
   });
 
   payload.gravity = finalGravity;
+  
   return payload;
 }
 

@@ -8,6 +8,7 @@ import {
   isPlainObject,
   isScalar,
   buildCardMapSavePayload,
+  getSessionId
 } from "../../utils/report_builder_helper";
 
 const router = useRouter();
@@ -133,6 +134,7 @@ function buildSavePayload() {
 
   const payload = buildCardMapSavePayload({
     runId: props.runId,
+    sessionId: getSessionId(),
     group: group.value,
     metric: props.metricKey,
     metricObj: { "(global)": { context_report: contextReport } },
@@ -141,6 +143,7 @@ function buildSavePayload() {
   });
 
   payload.gravity = finalGravity;
+  
 
   return payload;
 }

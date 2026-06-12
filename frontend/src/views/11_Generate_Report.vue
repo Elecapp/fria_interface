@@ -15,9 +15,10 @@ import GroupMetricMapViewReport from "../components/report/GroupMetricMapViewRep
 import RecordWithTableViewReport from "../components/report/RecordWithTableViewReport.vue";
 import CardMapReport from "../components/report/CardMapReport.vue";
 
+// 1. IMPORT THE HELPER FUNCTION
+import { getSessionId } from "../utils/report_builder_helper";
 
 const route = useRoute();
-
 const runId = computed(() => String(route.params.runId || ""));
 
 const meta = ref({
@@ -28,7 +29,6 @@ const meta = ref({
 
 const loading = ref(false);
 const error = ref("");
-
 const isPrintMode = computed(() => route.query.print === "1");
 const pdfTriggered = ref(false);
 
@@ -40,19 +40,6 @@ const summaryPages = ref([]);
 function resolveSchema(metricKey, schemaMap) {
   return schemaMap?.[metricKey]?.schema ?? null;
 }
-/** 
-function getReportRenderer(schema) {
-  switch (schema) {
-    case "card_map": return CardMapReport;
-    case "scalar_map": return ScalarMapViewReport;
-    case "conditional_nested": return ConditionalNestedViewReport;
-    case "group_metric_map": return GroupMetricMapViewReport;
-    case "record_with_table": return RecordWithTableViewReport;
-    default: return null;
-  }
-}
-*/
-// Sostituisci la tua vecchia funzione con questa:
 
 function getReportRenderer(schema) {
   switch (schema) {
@@ -130,10 +117,17 @@ async function generatePdf() {
 
   try {
     error.value = "";
+    
+    // 2. INCLUDE SESSION ID IN PDF GENERATION REQUEST
+    const sid = getSessionId();
+    
     const res = await fetch(`${API_HOST}/results/generate_pdf`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ run_id: runId.value }),
+      body: JSON.stringify({ 
+        run_id: runId.value, 
+        session_id: sid // <-- Sent in the body
+      }),
     });
 
     if (!res.ok) throw new Error(await res.text());
@@ -153,37 +147,25 @@ async function generatePdf() {
   }
 }
 
-// LA FUNZIONE CORRETTA E PULITA
 function buildGroupedScores(reportJson) {
   const grouped = {};
   let orderCounter = 0;
 
-  // Stampo il JSON appena arriva per assicurarci che sia tutto okay
-  console.log("1. Inizio elaborazione reportJson:", reportJson);
-
   for (const [topKey, topValue] of Object.entries(reportJson || {})) {
     if (!topValue || typeof topValue !== "object") continue;
 
-    // Funzione magica che trova i dati ovunque siano nascosti
     const extractData = (entry, fallbackName) => {
-      // Caccia alla Likelihood: controlla tutti i posti possibili
       let l = entry.final_score;
       if (l === undefined && entry.summary_report) l = entry.summary_report["Final Score"];
       if (l === undefined && entry.disparity_summary) l = entry.disparity_summary.final_score;
       if (l === undefined && entry.context_report) l = entry.context_report["Final Score"];
       l = Number(l) || 0;
 
-      // Trova Gravity
       let g = Number(entry.gravity_report ?? entry.gravity ?? 0);
-
-      // Trova Reversibilità
       let isRev = entry.reversibility_report === true;
       let revMulti = isRev ? 1 : 1.5;
-
-      // IL FAMOSO CALCOLO MATEMATICO CHE ORA NON PUÒ FALLIRE
       let calculatedFinalScore = Number((l * g * revMulti).toFixed(2));
 
-      // Nome e Dominio
       let domain = entry.metric_right_report || entry.right_report || "Unknown Domain";
       let metricName = entry.metric_report || entry.metric || fallbackName;
 
@@ -198,26 +180,18 @@ function buildGroupedScores(reportJson) {
       };
     };
 
-    // È una metrica principale (es. Anonymity) o raggruppata (es. CSP)?
     if (topValue.metric || topValue.final_score !== undefined) {
-       // METRICA SINGOLA
        let data = extractData(topValue, topKey);
        if (!grouped[data.domain]) grouped[data.domain] = [];
        grouped[data.domain].push(data);
-       
     } else {
-       // METRICA RAGGRUPPATA (es. Gender in Conditional Statistical Parity)
        for (const [subKey, subValue] of Object.entries(topValue)) {
          if (typeof subValue !== "object" || !subValue) continue;
          
-         // Se è un nodo valido di metrica...
          if (subValue.metric || subValue.final_score !== undefined || subValue.summary_report) {
             let data = extractData(subValue, topKey);
-            
-            // Aggiungiamo il prefisso (es: "Gender (Conditional Statistical Parity)")
             data.label = `${prettifyLabel(subKey)} (${data.label})`;
 
-            // Se il dominio generale è specificato sopra, lo usiamo
             if (topValue.metric_right_report) {
                data.domain = prettifyLabel(topValue.metric_right_report);
             }
@@ -228,9 +202,6 @@ function buildGroupedScores(reportJson) {
        }
     }
   }
-
-  // Stampo il risultato finale! Qui dentro DEVI vedere 50.25 per CSP Gender
-  console.log("2. Risultato finale raggruppato calcolato:", grouped);
 
   return Object.entries(grouped).map(([right, metrics]) => ({
     right,
@@ -280,7 +251,11 @@ onMounted(async () => {
     loading.value = true;
     error.value = "";
 
-    const res = await fetch(`${API_HOST}/results/values_to_display`);
+    // 3. GET SESSION ID ONCE
+    const sid = getSessionId();
+
+    // 4. APPEND SESSION ID TO ALL GET REQUESTS
+    const res = await fetch(`${API_HOST}/results/values_to_display?run_id=${runId.value}&session_id=${sid}`);
     if (!res.ok) throw new Error(await res.text());
     const data = await res.json();
 
@@ -290,47 +265,40 @@ onMounted(async () => {
       evaluator: data?.evaluator ?? meta.value.evaluator,
     };
 
-    const reportRes = await fetch(`${API_HOST}/results/${runId.value}_report`);
-    if (!reportRes.ok) throw new Error(await reportRes.text());
+    // 5. REQUEST THE REPORT WITH THE SESSION ID
+    const reportRes = await fetch(`${API_HOST}/results/${runId.value}_report?session_id=${sid}`);
+    
+    if (!reportRes.ok) {
+       console.error("Failed to load report. Ensure the base JSON file exists on the server and the backend supports session_id.");
+       throw new Error(`Server returned ${reportRes.status}: ${await reportRes.text()}`);
+    }
+    
     const reportData = await reportRes.json();
 
-
-    // ricalcolo punteggi jsoon alla fonte
-    
     const fixScoresRecursively = (obj) => {
       if (!obj || typeof obj !== 'object') return;
 
-      // Se questo "nodo" è una metrica valutata (ha gravity o total_score)
       if ('total_score_report' in obj || 'gravity_report' in obj || 'user_weight_report' in obj) {
         let l = obj.final_score;
         if (l === undefined && obj.summary_report) l = obj.summary_report["Final Score"];
         if (l === undefined && obj.disparity_summary) l = obj.disparity_summary.final_score;
         if (l === undefined && obj.context_report) l = obj.context_report["Final Score"];
         
-        // FIX T-CLOSENESS: se la metrica non ha score (es. ha solo un "message"), forziamo a 0
         l = (l !== undefined && !Number.isNaN(Number(l))) ? Number(l) : 0;
 
-        // Recuperiamo il peso (se l'utente non ha messo nulla, usiamo 1 come base)
         let g = Number(obj.user_weight_report ?? obj.gravity_report ?? obj.user_weight ?? obj.gravity ?? 1);
         let revMulti = obj.reversibility_report === true ? 1 : 1.5;
 
-        // MAGIA VERA: Forziamo il final_score alla radice dell'oggetto! 
-        // In questo modo le pagine del PDF (Gauge) lo troveranno a colpo sicuro.
         obj.final_score = l;
         obj.total_score_report = Number((l * g * revMulti).toFixed(2));
       }
 
-      // Continua a cercare in tutte le altre metriche del JSON
       for (const key in obj) {
         fixScoresRecursively(obj[key]);
       }
     };
 
-  
     fixScoresRecursively(reportData);
-    // =========================================================================
-    // FINE MAGIA
-    // =========================================================================
 
     reportJson.value = reportData;
 
@@ -363,9 +331,7 @@ onMounted(async () => {
     loading.value = false;
   }
 });
-
 </script>
-
 <template>
   <div class="reportRoot">
     <div v-if="loading" class="loading">Loading report…</div>

@@ -409,3 +409,12 @@ export function buildCardMapSavePayload({
     context_report: buildCardMapContextReport(metricObj, contextReport),
   };
 }
+
+export function getSessionId() {
+  let sid = sessionStorage.getItem("fria_session_id");
+  if (!sid) {
+    sid = crypto.randomUUID(); // Crea un ID univoco per l'utente
+    sessionStorage.setItem("fria_session_id", sid);
+  }
+  return sid;
+}
