@@ -242,7 +242,7 @@ async function onSave() {
                 v-model="featureJustifications[row.label]" 
                 class="modern-textarea" 
                 rows="3" 
-                placeholder="Explain the impact..."
+                placeholder="Explain the Gravity score..."
               ></textarea>
             </div>
 

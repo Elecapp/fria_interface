@@ -286,7 +286,7 @@ defineExpose({ goBackSafely });
               v-model="metricJustification" 
               class="modern-textarea" 
               rows="3" 
-              placeholder="Explain the impact..."
+              placeholder="Explain the Gravity score..."
             ></textarea>
           </div>
 

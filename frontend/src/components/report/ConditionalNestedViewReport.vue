@@ -226,7 +226,7 @@ const gaugeTicks = computed(() => {
           </section>
 
           <section v-if="justification && justification !== '-'" class="justification-box">
-            <h3 class="section-label">Contextual Justification</h3>
+            <h3 class="section-label">Justification</h3>
             <p class="justification-text">"{{ justification }}"</p>
           </section>
         </div>

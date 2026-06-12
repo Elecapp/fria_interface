@@ -219,7 +219,7 @@ onMounted(() => {
                 <span v-else-if="!featureNeedsJustification(activeFeatureTab) && getFeatureJustification(activeFeatureTab).trim().length === 0" class="optional-badge">Optional</span>
                 <span v-else class="ok-badge">Valid ✓</span>
               </div>
-              <textarea :value="getFeatureJustification(activeFeatureTab)" @input="setFeatureJustification(activeFeatureTab, $event.target.value)" class="modern-textarea" rows="2" placeholder="Explain the impact..."></textarea>
+              <textarea :value="getFeatureJustification(activeFeatureTab)" @input="setFeatureJustification(activeFeatureTab, $event.target.value)" class="modern-textarea" rows="2" placeholder="Explain the Gravity score..."></textarea>
             </div>
 
             <div class="action-row">

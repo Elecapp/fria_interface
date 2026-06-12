@@ -50,7 +50,9 @@ def strip_report_fields(d):
             "metric_description_report", 
             "metric_right_report", 
             "right_report", 
-            "schema_type_report"
+            "schema_type_report",
+            "context_report",
+            "summary_report"
         ]
         
         # Cancella solo le cose che finiscono in _report MA che non sono nella lista qui sopra
