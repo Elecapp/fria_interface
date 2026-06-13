@@ -410,7 +410,7 @@ export function buildCardMapSavePayload({
   };
 }
 
-// 1. Aggiungi questa funzione "salvavita" che funziona ovunque (anche su server HTTP)
+
 function generateUUID() {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
     return crypto.randomUUID();
@@ -422,7 +422,7 @@ function generateUUID() {
   });
 }
 
-// 2. Ecco la tua nuova getSessionId sicura e stabile
+
 export function getSessionId() {
   if (!sessionStorage.getItem("session_id")) {
     sessionStorage.setItem("session_id", generateUUID());
