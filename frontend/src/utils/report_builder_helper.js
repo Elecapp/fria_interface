@@ -410,11 +410,22 @@ export function buildCardMapSavePayload({
   };
 }
 
-export function getSessionId() {
-  let sid = sessionStorage.getItem("fria_session_id");
-  if (!sid) {
-    sid = crypto.randomUUID(); // Crea un ID univoco per l'utente
-    sessionStorage.setItem("fria_session_id", sid);
+// 1. Aggiungi questa funzione "salvavita" che funziona ovunque (anche su server HTTP)
+function generateUUID() {
+  if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {
+    return crypto.randomUUID();
   }
-  return sid;
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+    const r = Math.random() * 16 | 0;
+    const v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16);
+  });
+}
+
+// 2. Ecco la tua nuova getSessionId sicura e stabile
+export function getSessionId() {
+  if (!sessionStorage.getItem("session_id")) {
+    sessionStorage.setItem("session_id", generateUUID());
+  }
+  return sessionStorage.getItem("session_id");
 }
