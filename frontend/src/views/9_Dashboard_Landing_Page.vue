@@ -190,6 +190,9 @@ async function fetchData() {
 }
 
 function isMetricReviewed(metricKey) {
+  if (sessionStorage.getItem("reviewed_" + metricKey) === "true") {
+        return true;
+    }
   const report = getReportRoot();
   const m = report[metricKey];
   if (!m || typeof m !== "object") return false;
@@ -207,12 +210,55 @@ function isMetricReviewed(metricKey) {
 
 function getReportRoot() { return existingReport.value?.results ?? existingReport.value ?? {}; }
 
-function getSavedGlobalWeight(metric) { const m = getReportRoot()?.[metric]?.["(global)"]; return m?.user_weight_report ?? m?.gravity_report ?? BASE_GRAVITY; }
-function getSavedGlobalJustification(metric) { return getReportRoot()?.[metric]?.["(global)"]?.user_justification_report ?? DEFAULT_WEIGHT_JUSTIFICATION; }
-function getSavedMetricWeight(metric) { const m = getReportRoot()?.[metric]; return m?.user_weight_report ?? m?.gravity_report ?? BASE_GRAVITY; }
-function getSavedMetricJustification(metric) { return getReportRoot()?.[metric]?.user_justification_report ?? DEFAULT_WEIGHT_JUSTIFICATION; }
-function getSavedFeatureWeight(metric, feature) { const m = getReportRoot()?.[metric]?.[feature]; return m?.user_weight_report ?? m?.gravity_report ?? BASE_GRAVITY; }
-function getSavedFeatureJustification(metric, feature) { return getReportRoot()?.[metric]?.[feature]?.user_justification_report ?? DEFAULT_WEIGHT_JUSTIFICATION; }
+
+function getSavedGlobalWeight(metric) { 
+  const fresh = latestResults.value?.[metric];
+  // Ora cerca nella chiave giusta del report!
+  if (fresh?.["(global)"]?.user_weight_report !== undefined) return fresh["(global)"].user_weight_report;
+  if (fresh?.["(global)"]?.user_weight !== undefined) return fresh["(global)"].user_weight;
+  if (fresh?.user_weight_report !== undefined) return fresh.user_weight_report;
+  if (fresh?.user_weight !== undefined) return fresh.user_weight;
+  
+  const m = getReportRoot()?.[metric]?.["(global)"]; 
+  return m?.user_weight_report ?? m?.gravity_report ?? BASE_GRAVITY; 
+}
+
+function getSavedGlobalJustification(metric) { 
+  const fresh = latestResults.value?.[metric];
+  // Ora non si fa fregare dal testo di default
+  if (fresh?.["(global)"]?.user_justification_report !== undefined) return fresh["(global)"].user_justification_report;
+  if (fresh?.["(global)"]?.user_justification !== undefined) return fresh["(global)"].user_justification;
+  if (fresh?.user_justification_report !== undefined) return fresh.user_justification_report;
+  if (fresh?.user_justification !== undefined) return fresh.user_justification;
+  
+  return getReportRoot()?.[metric]?.["(global)"]?.user_justification_report ?? DEFAULT_WEIGHT_JUSTIFICATION; 
+}
+
+function getSavedMetricWeight(metric) { 
+  const fresh = latestResults.value?.[metric];
+  if (fresh?.user_weight !== undefined) return fresh.user_weight;
+  const m = getReportRoot()?.[metric]; 
+  return m?.user_weight_report ?? m?.gravity_report ?? BASE_GRAVITY; 
+}
+
+function getSavedMetricJustification(metric) { 
+  const fresh = latestResults.value?.[metric];
+  if (fresh?.user_justification !== undefined) return fresh.user_justification;
+  return getReportRoot()?.[metric]?.user_justification_report ?? DEFAULT_WEIGHT_JUSTIFICATION; 
+}
+
+function getSavedFeatureWeight(metric, feature) { 
+  const fresh = latestResults.value?.[metric]?.[feature];
+  if (fresh?.user_weight !== undefined) return fresh.user_weight;
+  const m = getReportRoot()?.[metric]?.[feature]; 
+  return m?.user_weight_report ?? m?.gravity_report ?? BASE_GRAVITY; 
+}
+
+function getSavedFeatureJustification(metric, feature) { 
+  const fresh = latestResults.value?.[metric]?.[feature];
+  if (fresh?.user_justification !== undefined) return fresh.user_justification;
+  return getReportRoot()?.[metric]?.[feature]?.user_justification_report ?? DEFAULT_WEIGHT_JUSTIFICATION; 
+}
 
 async function buildReportPayloadWithDefaults() {
   const all = latestResults.value?.results ?? latestResults.value ?? {};

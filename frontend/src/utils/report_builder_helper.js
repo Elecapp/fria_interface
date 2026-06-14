@@ -391,25 +391,33 @@ export function buildCardMapContextReport(metricObj, contextReportOverride = nul
 
 export function buildCardMapSavePayload({
   runId,
+  sessionId, 
   group,
   metric,
   schemaType,
   metricObj,
   contextReport = null,
-  userWeight = DEFAULT_WEIGHT,
-  userJustification = DEFAULT_WEIGHT_JUSTIFICATION,
+  userWeight = 1,
+  userJustification = "",
 }) {
   return {
     run_id: runId,
+    session_id: sessionId || getSessionId(), // Garantisce che la sessione parta sempre
     group,
     metric,
     schema_type_report: schemaType,
     user_weight: userWeight,
     user_justification: userJustification,
+    gravity: userWeight,
+    reversibility: false,
+    
+    // Queste due righe salvano il PDF per la Privacy!
+    weights: { "(global)": userWeight },
+    justifications: { "(global)": userJustification },
+    
     context_report: buildCardMapContextReport(metricObj, contextReport),
   };
 }
-
 
 function generateUUID() {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') {

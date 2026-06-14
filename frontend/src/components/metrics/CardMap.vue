@@ -11,7 +11,7 @@ import {
   getSessionId
 } from "../../utils/report_builder_helper";
 
-const router = useRouter();
+
 const route = useRoute();
 
 const group = computed(() => String(route.params.group || ""));
@@ -88,10 +88,13 @@ onMounted(() => {
     savedData = { ...savedData, ...savedData["(global)"] };
   }
 
-  const savedGrav = savedData.user_weight ?? savedData.user_weight_report ?? savedData.gravity ?? savedData.gravity_report;
+  // Cerca ovunque: pesi freschi, vecchi o report
+  const savedGrav = savedData.user_weight_report ?? savedData.user_weight ?? savedData.gravity_report ?? savedData.gravity;
   if (savedGrav !== undefined) metricGravity.value = Number(savedGrav);
 
-  let savedJust = savedData.user_justification ?? savedData.user_justification_report ?? savedData.justification;
+  // Cerca ovunque la giustificazione
+  let savedJust = savedData.user_justification_report ?? savedData.user_justification ?? savedData.justification_report ?? savedData.justification;
+  
   if (savedJust === DEFAULT_WEIGHT_JUSTIFICATION) savedJust = "";
   if (savedJust !== undefined) metricJustification.value = String(savedJust);
 });
@@ -134,7 +137,6 @@ function buildSavePayload() {
 
   const payload = buildCardMapSavePayload({
     runId: props.runId,
-    sessionId: getSessionId(),
     group: group.value,
     metric: props.metricKey,
     metricObj: { "(global)": { context_report: contextReport } },
@@ -143,11 +145,19 @@ function buildSavePayload() {
   });
 
   payload.gravity = finalGravity;
-  
+
+  payload.session_id = getSessionId();
+  payload.reversibility = false;
+
+
+  payload.user_weight = finalGravity;
+  payload.user_justification = justification;
+  payload.weights = { "(global)": finalGravity };
+  payload.justifications = { "(global)": justification };
+
 
   return payload;
 }
-
 async function postSaveWeights() {
   const resp = await fetch(`${API_HOST}/results/save_weights`, {
     method: "POST",
@@ -184,9 +194,13 @@ async function goBackSafely() {
   if (canSave.value) {
     await onSave();
   }
-  emit("go-back-safe"); // Ora è lui e solo lui a innescare il ritorno!
+  
+  // 1. METTE IL POST-IT DIRETTAMENTE QUI, senza aspettare il padre
+  sessionStorage.setItem("reviewed_" + props.metricKey, "true");
+  
+  // 2. FORZA IL RITORNO ALLA DASHBOARD CON REFRESH ASSOLUTO
+  window.location.href = `/dashboard?runId=${props.runId}&t=${Date.now()}`;
 }
-defineExpose({ goBackSafely });
 </script>
 
 <template>
@@ -220,28 +234,28 @@ defineExpose({ goBackSafely });
           </div>
 
           <div class="slider-container">
-  <div class="slider-labels-top">
-    <span>Gravity</span>
-    <span class="weight-display">
-      {{ Number(getFeatureGravity(activeFeatureTab)).toFixed(2) }} - {{ getGravityLabel(getFeatureGravity(activeFeatureTab)) }}
-    </span>
-  </div>
-  
-  <input 
-    type="range" min="1" max="5" step="0.01" 
-    :value="getFeatureGravity(activeFeatureTab)" 
-    @input="setFeatureGravity(activeFeatureTab, $event.target.value)" 
-    class="premium-slider" 
-  />
-  
-  <div class="ticks-labels">
-    <div class="tick-item"><span>Low</span></div>
-    <div class="tick-item"><span>Low-Med</span></div>
-    <div class="tick-item"><span>Medium</span></div>
-    <div class="tick-item"><span>Med-High</span></div>
-    <div class="tick-item"><span>High</span></div>
-  </div>
-</div>
+            <div class="slider-labels-top">
+              <span>Gravity</span>
+              <span class="weight-display">
+                {{ Number(metricGravity).toFixed(2) }} - {{ getGravityLabel(metricGravity) }}
+              </span>
+            </div>
+            
+            <input 
+              type="range" min="1" max="5" step="0.01" 
+              :value="metricGravity" 
+              @input="metricGravity = $event.target.value" 
+              class="premium-slider" 
+            />
+            
+            <div class="ticks-labels">
+              <div class="tick-item"><span>Low</span></div>
+              <div class="tick-item"><span>Low-Med</span></div>
+              <div class="tick-item"><span>Medium</span></div>
+              <div class="tick-item"><span>Med-High</span></div>
+              <div class="tick-item"><span>High</span></div>
+            </div>
+          </div>
             
 
 

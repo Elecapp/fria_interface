@@ -83,7 +83,7 @@ def get_plugins():
     return {"config_file": path.name, "plugins": cfg.get("plugins", [])}
 
 @router.get("/results/values_to_display")
-def values_to_display(run_id: Optional[str] = Query(None)):
+def values_to_display(run_id: Optional[str] = Query(None), session_id: Optional[str] = Query(None)): # <-- AGGIUNTO SESSION_ID QUI
     global ACTIVE_RUN_ID
     if run_id and run_id.strip(): ACTIVE_RUN_ID = run_id.strip()
     current_id = ACTIVE_RUN_ID
@@ -95,19 +95,20 @@ def values_to_display(run_id: Optional[str] = Query(None)):
         ACTIVE_RUN_ID = current_id
 
     dataset_names_map = {
-        
-       # "Bank_case1": "Algoritmo credit score 1",
         "Bank_case2": "Algoritmo credit score 2",
-        #"Bank_case3": "Algoritmo credit score 3",
     }
     fallback_name = current_id.replace("_", " ").title()
     dataset_name = dataset_names_map.get(current_id, f"Dataset: {fallback_name}")
     evaluation_date = datetime.now().strftime("%B %d, %Y")
     
-    report_path = RESULTS_DIR / f"{current_id}_report.json"
+    # ---> FIX FONDAMENTALE: Legge il file del tuo utente, non quello vuoto! <---
+    if session_id:
+        report_path = RESULTS_DIR / f"{current_id}_report_{session_id}.json"
+    else:
+        report_path = RESULTS_DIR / f"{current_id}_report.json"
+        
     res_path = RESULTS_DIR / f"{current_id}.json"
 
-    # DA PRECEDENZA ASSOLUTA AL REPORT COSI LE MODIFICHE RESTANO!
     if report_path.exists():
         data = json.loads(report_path.read_text(encoding="utf-8"))
         results = data.get("results", data)

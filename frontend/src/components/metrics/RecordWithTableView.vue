@@ -168,7 +168,7 @@ function buildSavePayload() {
   
   const payload = buildRecordWithTableSavePayload({
     runId: props.runId,
-    session:id= getSessionId(),
+    sessionId: getSessionId(), // <-- ERRORE DI BATTITURA CORRETTO QUI!
     group: group.value,
     metric: props.metricKey,
     metricObj: contextReport,
@@ -176,11 +176,15 @@ function buildSavePayload() {
     userJustification: justification,
   });
 
+  // Aggiunte di sicurezza per far digerire i dati al server e al PDF
+  payload.session_id = getSessionId();
   payload.gravity = finalGravity;
+  payload.reversibility = false;
+  payload.user_weight = finalGravity;
+  payload.user_justification = justification;
   
   return payload;
 }
-
 async function postSaveMetric() {
   const resp = await fetch(`${API_HOST}/results/save_weights`, {
     method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(buildSavePayload()),
@@ -205,7 +209,13 @@ async function goBackSafely() {
   if (canSave.value) {
     await onSave();
   }
-  emit("go-back-safe");
+  
+ 
+  sessionStorage.setItem("reviewed_" + props.metricKey, "true");
+  
+  // 2. Forza il ritorno col router e resetta la cache per mostrare i dati salvati
+  router.back();
+  setTimeout(() => window.location.reload(), 100);
 }
 defineExpose({ goBackSafely });
 </script>

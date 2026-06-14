@@ -27,8 +27,10 @@ const forceRenderKey = ref(Date.now());
 const metricViewRef = shallowRef(null);
 
 async function handleBack() {
+  // 1. Post-it infallibile
+  sessionStorage.setItem("reviewed_" + metricKey.value, "true");
+
   const view = metricViewRef.value;
-  
   if (view && typeof view.goBackSafely === "function") {
     await view.goBackSafely();
     return;
@@ -41,10 +43,12 @@ async function handleBack() {
       (b.textContent.toLowerCase().includes('save') || b.textContent.toLowerCase().includes('submit')) && 
       !b.classList.contains('btn-confirm')
     );
-    
     if (saveBtn) {
       saveBtn.click(); 
-      setTimeout(() => { router.back(); }, 600); 
+      setTimeout(() => { 
+        router.back();
+        setTimeout(() => window.location.reload(), 100); // Ricarica dopo essere tornato
+      }, 600); 
       return;
     }
   }
@@ -87,11 +91,15 @@ async function handleBack() {
       console.error("Salvataggio di emergenza fallito", e);
   }
 
+  // 2. Torna indietro col router ufficiale e poi ricarica
   router.back();
+  setTimeout(() => window.location.reload(), 100);
 }
 
 function handleChildSafeBack() {
+  sessionStorage.setItem("reviewed_" + metricKey.value, "true");
   router.back();
+  setTimeout(() => window.location.reload(), 100);
 }
 
 const metricObj = computed(() => allResults.value?.[metricKey.value] ?? null);
@@ -128,6 +136,22 @@ const renderer = computed(() => {
 function deepRestore(obj) {
   if (!obj || typeof obj !== 'object') return;
   
+  // 1. TRUCCO MAGICO: Spalma i pesi e i testi dal server ai componenti
+  if (obj.weights && typeof obj.weights === 'object') {
+    for (const k in obj.weights) {
+      if (obj[k] && typeof obj[k] === 'object') obj[k].user_weight = obj.weights[k];
+    }
+  }
+  if (obj.justifications && typeof obj.justifications === 'object') {
+    for (const k in obj.justifications) {
+      if (obj[k] && typeof obj[k] === 'object') obj[k].user_justification = obj.justifications[k];
+    }
+  }
+  
+  // Salva le metriche globali (Privacy) nella radice per CardMap
+  if (obj.justifications && obj.justifications["(global)"]) obj.user_justification = obj.justifications["(global)"];
+  if (obj.weights && obj.weights["(global)"]) obj.user_weight = obj.weights["(global)"];
+
   if ('user_weight_report' in obj) { obj.user_weight = obj.user_weight_report; obj.weight = obj.user_weight_report; }
   if ('gravity_report' in obj) { obj.gravity = obj.gravity_report; }
   if ('user_justification_report' in obj) { obj.user_justification = obj.user_justification_report; obj.justification = obj.user_justification_report; }
@@ -139,8 +163,8 @@ function deepRestore(obj) {
   Object.values(obj).forEach(val => { if (typeof val === 'object') deepRestore(val); });
 }
 
-// --- DIZIONARIO METRICHE (Con spazio per inserire il link delle immagini) ---
-// Inserisci l'URL dell'immagine presa dalle slide nel campo `image: "..."`
+
+
 const metricDescriptions = {
   anonymity_set_size: {
     text: "The core purpose of this metric is to assess how much risk there is that our data could be 'de-anonymized' (meaning, how easily we could figure out who a specific person is). <br><br> <b>The Rule of Thumb:</b><ul><li> A large Anonymity Set Size means many people share those characteristics (i.e., the so-called quasi-identifiers), making it very difficult to point to any single person. This suggests a lower risk.</li><li> A very small Anonymity Set Size (e.g., 1, 2, or 3) means that only a handful of people share that specific combination of traits. This suggests a high risk because that small group could be vulnerable to re-identification. </li></ul><br>In short, a low Anonymity Set Size is a warning sign that the data might be too specific and could compromise the privacy of the people within it.",
@@ -224,7 +248,11 @@ onMounted(async () => {
 
     const t = new Date().getTime();
     const sid = getSessionId();
-    const res = await fetch(`${API_HOST}/results/values_to_display?run_id=${runId.value}&session_id=${sid}`);
+    
+    
+    const res = await fetch(`${API_HOST}/results/values_to_display?run_id=${runId.value}&session_id=${sid}&t=${t}`);
+    
+    if (!res.ok) throw new Error(await res.text());
     if (!res.ok) throw new Error(await res.text());
     const data = await res.json();
 
