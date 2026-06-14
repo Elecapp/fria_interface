@@ -1,4 +1,4 @@
-import { createRouter, createWebHistory } from "vue-router";
+import { createRouter, createWebHashHistory } from "vue-router";
 import Home from "../views/0_Landing_Page.vue";
 import SelectUser from "../views/1_Select_User.vue";
 import UploadYourDataAndModel from "../views/2_Upload_Datasets.vue";
@@ -12,7 +12,7 @@ import ReviewResults from "../views/9_Dashboard_Landing_Page.vue";
 import MetricResults from "../views/10_Dashboard_Results.vue";
 
 const router = createRouter({
-  history: createWebHistory(),
+  history: createWebHashHistory(),
   routes: [
     { path: "/", name: "home", component: Home },
     { path: "/su", name: "selectUser", component: SelectUser },
